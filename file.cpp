@@ -8,27 +8,14 @@
 
 #include "helper.hpp"
 #include "context.hpp"
-#include "ntfs.hpp"
+#include "attr.hpp"
+#include "entry.hpp"
 #include "file.hpp"
-
-const uint64_t NTFS_TO_UNIX_EPOCH = 11644473600ULL; // Difference in seconds
-const uint64_t INTERVALS_PER_SECOND = 10000000ULL;  //
 
 unordered_map<uint32_t, pair<string, uint32_t>> File::dirs;
 
-time_t convert(const Time time) {
-    time_t timestamp = (uint64_t)time/INTERVALS_PER_SECOND - NTFS_TO_UNIX_EPOCH;
-    return timestamp;
-}
-
 ostream& operator<<(ostream& os, const Time_t time) {
     os << std::put_time(std::localtime(reinterpret_cast<const time_t*>(&time)), "%Y.%m.%d %H:%M:%S");
-    return os;
-}
-
-ostream& operator<<(ostream& os, const Time time) {
-    time_t timestamp = convert(time);
-    os << std::put_time(std::localtime(&timestamp), "%Y.%m.%d %H:%M:%S");
     return os;
 }
 
@@ -77,7 +64,7 @@ ostream& operator<<(ostream& os, const File& file) {
         if (!file.valid || file.exists) return os;
         if (!file.content && file.runlist.empty()) return os;
     }
-    if (!--file.context.show) file.context.count = 0;
+    file.context.dec();
     os << tab << file.time << tab;
     if (!file.content) {
         if (file.size) {
@@ -101,28 +88,28 @@ ostream& operator<<(ostream& os, const File& file) {
     return os << endl;
 }
 
-File::File(LBA lba, const vector<char>& buffer, Context& context):
+File::File(LBA lba, const Record* record, Context& context):
         context(context), error(false), pid(-1),
         valid(false), lba(lba), dir(false), size(0), alloc(0),
         content(nullptr), done(false), exists(false)
 {
-    const Entry* entry = reinterpret_cast<const Entry*>(buffer.data());
-    uint32_t* endTag = (uint32_t*)(entry->key + entry->size) - 2;
-    if (!entry) return;
-    used = entry->used();
+    if (!record) return;
+    uint32_t* endTag = (uint32_t*)(record->key + record->size) - 2;
+    if (!record) return;
+    used = record->used();
     if (!used) return;
     if (*endTag != 0xFFFFFFFF) return;
-    index = entry->rec;
-    const Attr* attrs = (const Attr*)(entry->key + entry->attr);
-    if (entry->dir()) {
+    index = record->rec;
+    const Attr* attrs = (const Attr*)(record->key + record->attr);
+    if (record->dir()) {
         string name;
         dir = true;
         uint16_t parent = attrs->getDir(name);
-        if (dirs.end() == dirs.find(entry->rec)) {
-            dirs[entry->rec] = make_pair(name, parent);
+        if (dirs.end() == dirs.find(record->rec)) {
+            dirs[record->rec] = make_pair(name, parent);
             if (context.extra) {
                 if (!context.dirs.is_open()) context.dirs.open("ntfs.dirs", ios::binary);
-                if (context.dirs.is_open()) context.dirs << entry->rec << tab << name << tab << parent << endl;
+                if (context.dirs.is_open()) context.dirs << record->rec << tab << name << tab << parent << endl;
             }
         }
     }
@@ -268,7 +255,7 @@ bool File::open()
         struct stat info;
         stat(full.c_str(), &info);
         if (context.verbose) cerr << "File exists: " << full;
-        if (size <= info.st_size && !context.force) {   // check file size against MFT entry
+        if (size <= info.st_size && !context.force) {   // check file size against MFT record
             if (context.verbose) cerr << ", and its size is OK. Skipping" << endl;
             done = true;
             exists = true;

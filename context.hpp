@@ -16,8 +16,6 @@ struct Context {
     LBA				bias, first, last;
     int64_t			count, show;
     set<string>		include, exclude;
-    uid_t			user;
-    gid_t			group;
     uint64_t		magic;
     bool			recover, all, force, extra;
     uint            sector, sectors;
@@ -31,6 +29,7 @@ struct Context {
     Format format;
     Context();
     ~Context() { sem_destroy(sem); };
+    void dec() { if (!--show) count = 0; }
 };
 
 ostream& operator<<(ostream&, const Context&);

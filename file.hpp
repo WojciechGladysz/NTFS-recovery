@@ -5,13 +5,12 @@
 #include <set>
 #include <unordered_map>
 
-#include "ntfs.hpp"
-
 using namespace std;
 
-enum class Time_t:uint64_t;
+enum class Time_t: uint64_t;
 
 struct Context;
+struct Record;
 
 struct File
 {
@@ -34,11 +33,9 @@ struct File
     bool hit(const set<string>&, bool);
     bool parse();
     operator bool() const { return valid; }
-    File(LBA, const vector<char>&, struct Context&);
+    File(LBA, const Record*, struct Context&);
     void recover();
 };
 
-time_t convert(const Time);
-ostream& operator<<(ostream& os, const Time time);
 ostream& operator<<(ostream& os, const File&);
 ifstream& operator>>(ifstream& os, File&);

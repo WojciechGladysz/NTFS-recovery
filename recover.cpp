@@ -1,3 +1,4 @@
+#include <iostream>
 #include <fstream>
 #include <filesystem>
 #include <vector>
@@ -12,6 +13,7 @@
 
 #include "helper.hpp"
 #include "context.hpp"
+#include "entry.hpp"
 #include "file.hpp"
 
 using namespace std;
@@ -113,16 +115,6 @@ Parsed arguments:
         exit(EXIT_FAILURE);
     }
 
-    // give up root previlages
-    const char* sudoUid = std::getenv("SUDO_UID");
-    const char* sudoGid = std::getenv("SUDO_GID");
-    if (sudoUid && sudoGid) {
-        context.user = strtol(sudoUid, nullptr, 0);
-        context.group = strtol(sudoGid, nullptr, 0);
-    }
-
-    vector<char> buffer(context.sector);
-
     // scan for NTFS boot sector
     cerr << "Searching for MFT entries...\n" << endl;
 
@@ -137,73 +129,10 @@ Parsed arguments:
     while (!idev.eof() && context.count--) {
         lba = idev.tellg() / context.sector;
         if (context.last && lba >= context.last) break;
-        buffer.resize(context.sector);
-        if (!idev.read(buffer.data(), context.sector)) {
-            cerr << "Device read error at: " << outvar(lba) << endl;
-            exit(EXIT_FAILURE);
-        }
-        Boot* boot = reinterpret_cast<Boot*>(buffer.data());
-        if (*boot) {
-            context.sector = boot->sector;
-            context.sectors = boot->sectors;
-            dump(lba, buffer);
-            cout << boot;
-            confirm();
-            continue;
-        }
-
-        Index* index = reinterpret_cast<Index*>(buffer.data());
-        if (*index) {
-            buffer.resize(context.sector * context.sectors);
-            size_t more = buffer.size() - context.sector;
-            if (!idev.read(buffer.data() + context.sector, more)) {
-                cerr << "Device read error at: " << hex << lba << endl;
-                exit(EXIT_FAILURE);
-            }
-            cout << '\r' << hex << uppercase << 'x' << lba << '\t';
-            Index* index = reinterpret_cast<Index*>(buffer.data());
-            dump(lba, buffer);
-            cout << index;
-            confirm();
-            continue;
-        }
-
-        Entry* entry = reinterpret_cast<Entry*>(buffer.data());
-        if (!*entry) {
-            if (context.debug) {
-                cout << endl;
-                dump(lba, buffer);
-                confirm();
-            }
-            continue;
-        }
-
-        auto alloc = entry->alloc;
-        if (alloc > (1<<16)) {
-            cout << "Not resizing to " << outvar(alloc) << endl;
-            dump(lba, buffer);
-            cout << endl << "Skipping currupted entry:"
-                << hex << uppercase << 'x' << lba << ':' << endl << entry;
-            confirm();
-            continue;
-        }
-        if (alloc != buffer.size()) buffer.resize(alloc);
-        size_t more = alloc - context.sector;
-        if (more) {
-            if (!idev.read(buffer.data() + context.sector, more)) {
-                cerr << "Device read error at: " << hex << lba << endl;
-                exit(EXIT_FAILURE);
-            }
-        }
-        auto size = entry->size;
-        buffer.resize(size);
-        dump(lba, buffer);
-        if (context.debug) cout << endl;
-        if (context.verbose) {
-            entry = reinterpret_cast<Entry*>(buffer.data());
-            cout << hex << uppercase << 'x' << lba << ':' << endl << entry;
-        }
-        File file(lba, buffer, context);
+        Entry entry(context);
+        idev >> entry;
+        if (!entry) continue;
+        File file(lba, entry.record(), context);
         file.recover();
         waitpid(-1, NULL, WNOHANG);
     }
