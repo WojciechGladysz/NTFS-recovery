@@ -121,7 +121,7 @@ File::File(LBA lba, const Record* record, Context& context):
             confirm();
         }
         context.bias = runlist[0].first * context.sectors - lba;
-        cerr << "New context LBA offset based on last $MFT record: " << outvar(context.bias) << endl;
+        cerr << "New context LBA bias based on last $MFT record: " << outvar(context.bias) << endl;
     }
     hit(context.include, true);
     hit(context.exclude, false);

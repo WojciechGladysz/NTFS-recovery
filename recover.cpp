@@ -28,11 +28,13 @@ int main(int n, char** argv) {
         char* arg = argv[i];
         if (*arg == '-') 
         while (*++arg){
+            if (*arg == 'h') { help = true; continue; }
             if (*arg == 'R') { context.recover = true; continue; }
             if (*arg == 'c') { context.confirm = true; continue; }
             if (*arg == 'a') { context.all = true; continue; }
             if (*arg == 'X') { context.extra = true; continue; }
-            if (*arg == 'h') { help = true; continue; }
+            if (*arg == 'f') { context.force = true; continue; }
+            if (*arg == 'I') { context.index = true; continue; }
             if (*arg == 'v') {
                 if (context.verbose) context.debug = true;
                 context.verbose = true;
@@ -41,7 +43,6 @@ int main(int n, char** argv) {
             if (*arg == 'Y') { context.format = Context::Format::Year; continue; }
             if (*arg == 'M') { context.format = Context::Format::Month; continue; }
             if (*arg == 'D') { context.format = Context::Format::Day; continue; }
-            if (*arg == 'f') { context.force = true; continue; }
             if (*arg == 'd') { context.dev = string(++arg); break; }
             if (*arg == 'l') { context.first = strtol(++arg, nullptr, 0); break; }
             if (*arg == 'L') { context.last = strtol(++arg, nullptr, 0); break; }
@@ -85,6 +86,7 @@ int main(int n, char** argv) {
 -x      exclude files with extensions separated with comma (no spaces)
         mime types are OK, example: image, video
 -v      be verbose, if repeated be more verbose with debug info
+-I      show index allocations
 -Y      file path under target directory will be altered to /yyyy/
 -M      file path under target directory will be altered to /yyyy/mm/
 -D      file path under target directory will be altered to /yyyy/mm/dd/

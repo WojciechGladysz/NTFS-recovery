@@ -315,21 +315,22 @@ ostream& operator<<(ostream& os, const Header* attr) {
 }
 
 ostream& operator<<(ostream& os, const Node* attr) {
-        ldump(attr, attr->size);
-        if (Context::verbose) {
-        os << "index: " << outvar((attr->index & 0xFFFFFFFFFFFF)) << tab
+    ldump(attr, attr->size);
+    if (Context::verbose) {
+        os << "index: " << outvar(attr->index) << tab
             << "size:" << outvar(attr->size) << tab
             << "name end: " << outvar(attr->offset + offsetof(Node, unused)) << tab
-            << "flags: " << outvar(attr->flags) << tab;
+            << "flags: " << hex << attr->flags << tab;
+    }
+    if (attr->length) {
+        try {
+            os << tab << dec << attr->index << '/'
+                << converter.to_bytes(&attr->name, &attr->name + attr->length);
         }
-        if (attr->length) {
-            try {
-                os << '\t' << converter.to_bytes(&attr->name, &attr->name + attr->length);
-            }
-            catch (...) { os << '\t' << "name exception"; }
-        }
-        else os << "no names";
-        if (Context::verbose) os << endl;
+        catch (...) { os << "name exception"; }
+    }
+    else os << "no names";
+    if (Context::verbose) os << endl;
     return os;
 }
 

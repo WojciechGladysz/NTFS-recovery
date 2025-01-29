@@ -36,6 +36,7 @@ ostream& operator<<(ostream& oss, const Context& context) {
     }
     if (context.confirm) oss << "confirm, ";
     if (context.all) oss << "show all, ";
+    if (context.index) oss << "show index entries, ";
     if (context.format != Context::Format::None) {
         oss << "path:/yyyy/";
         if (context.format > Context::Format::Year) oss << "mm/";
@@ -53,14 +54,9 @@ ostream& operator<<(ostream& oss, const Context& context) {
 Context::Context(): dir("."), count(-1L), show(-1L), sector(512), sectors(8) {
     bias = first = last = 0;
     magic = 0;
-    verbose = false;
-    debug = false;
-    confirm = false;
-    recover = false;
-    all = false;
-    force = false;
+    verbose = debug = confirm = recover = all = force = index = false;
     format = Context::Format::None;
-    size = 1 << 24;
+    size = 1 << 24;     // 16MB
     childs = 4;
     sem = (sem_t*)mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     sem_init(sem, 1, 4);

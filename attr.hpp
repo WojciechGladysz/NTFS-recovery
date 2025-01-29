@@ -52,13 +52,14 @@ struct __attribute__ ((packed)) Name {
 };
 
 struct __attribute__ ((packed)) Node {
-    uint64_t    index;
+    uint64_t    index:48;
+    uint16_t    unknown1:16;
     uint16_t    size;
     uint16_t    offset;
     uint32_t    flags;
     uint64_t    unused[8];
     uint8_t     length;
-    uint8_t     unknown;
+    uint8_t     unknown2;
     char16_t    name;
     friend ostream& operator<<(ostream& os, const Node*);
 };

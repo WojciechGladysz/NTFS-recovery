@@ -42,8 +42,7 @@ ostream& operator<<(ostream& os, const Boot* boot) {
         << "sectors per track: " << outchar(boot->sectorsPerTrack) << endl
         << "heads: " << outchar(boot->heads) << endl
         << "hidden: " << outvar(boot->hidden) << endl
-        << "total: " << outvar(boot->total) << endl
-        << "total: " << (total/(1LL<<30)) << "G" << endl
+        << "total: " << outvar(boot->total) << tab << (total/(1LL<<30)) << "G" << endl
         << "start: " << outvar(boot->start) << endl
         << "mirror: " << outvar(boot->mirror) << endl
         << "size: " << outvar(boot->getSize()) << endl
@@ -75,7 +74,6 @@ ostream& operator<<(ostream& os, const Index* index)
         os << node;
         node = reinterpret_cast<const Node*>((char*)node + node->size);
     }
-    os << endl;
     os << endl;
     return os;
 }
@@ -134,6 +132,7 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
 
     Boot* boot = reinterpret_cast<Boot*>(entry.data());
     if (*boot) {
+        cout << '\r' << hex << uppercase << 'x' << lba << '\t';
         entry.context.sector = boot->sector;
         entry.context.sectors = boot->sectors;
         dump(lba, entry);
@@ -144,7 +143,7 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
     }
 
     Index* index = reinterpret_cast<Index*>(entry.data());
-    if (*index) {
+    if (entry.context.index && *index) {
         entry.resize(entry.context.sector * entry.context.sectors);
         size_t more = entry.size() - entry.context.sector;
         if (!ifs.read(entry.data() + entry.context.sector, more)) {
