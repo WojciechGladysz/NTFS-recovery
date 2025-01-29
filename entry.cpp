@@ -66,7 +66,6 @@ ostream& operator<<(ostream& os, const Index* index)
             << "entries: " << outvar(index->entries) << tab
             << "log sequence: " << outvar(index->logSeq) << tab
             << "vnc: " << outvar(index->vnc) << endl;
-    os << index->header;
     if (Context::debug) os << endl;
     const Node* node = reinterpret_cast<const Node*>((char*)index->header + index->header->offset);
     const Node* last = reinterpret_cast<const Node*>((char*)index + index->header->size);
@@ -80,7 +79,7 @@ ostream& operator<<(ostream& os, const Index* index)
 
 ostream& operator<<(ostream& os, const Record* record) {
     uint32_t* endTag = (uint32_t*)(record->key + record->size) - 2;
-    os << "Entry: ";
+    os << "Record: ";
     if (!record->used())
         return os << "not used" << endl;
     if (*endTag != 0xFFFFFFFF) {
@@ -108,7 +107,7 @@ ostream& operator<<(ostream& os, const Record* record) {
         << "Attributes:\n" << endl;
     const Attr* next = (Attr*)(record->key + record->attr);
     while (next) {
-        os << '@' << hex << ((char*)next - record->key) << '.';
+        if (Context::debug) os << '@' << hex << ((char*)next - record->key) << ": ";
         os << next << endl;
         next = next->getNext();
     }

@@ -57,22 +57,22 @@ enum class AttrId: __attribute__ ((packed)) uint32_t
 };
 
 unordered_map<const AttrId, const string> attrName {
-    { AttrId::StandardInfo, "STANDARD INFO" },
-    { AttrId::AttributeList, "ATTRIBUTE LIST" },
-    { AttrId::FileName, "FILE NAME" },
-    { AttrId::ObjectId, "OBJECT ID" },
-    { AttrId::SecurityDescriptor, "SECURITY DESCRIPTOR" },
-    { AttrId::VolumeName, "VOLUME NAME" },
-    { AttrId::VolumeInformation, "vOLUME INFORMATION" },
-    { AttrId::Data, "DATA" },
-    { AttrId::IndexRoot, "INDEX ROOT" },
-    { AttrId::IndexAllocation, "INDEX ALLOCATION" },
-    { AttrId::Bitmap, "BITMAP" },
-    { AttrId::ReparsePoint, "REPARSE POINT" },
-    { AttrId::EAInformation, "EA INFORMATION" },
-    { AttrId::EA, "EA" },
-    { AttrId::PropertySet, "PROPERTY SET" },
-    { AttrId::LoggedUtilityStream, "LOGGED UTILITY STREAM" }
+    { AttrId::StandardInfo, "$STANDARD INFO" },
+    { AttrId::AttributeList, "$ATTRIBUTE LIST" },
+    { AttrId::FileName, "$FILE NAME" },
+    { AttrId::ObjectId, "$OBJECT ID" },
+    { AttrId::SecurityDescriptor, "$SECURITY DESCRIPTOR" },
+    { AttrId::VolumeName, "$VOLUME NAME" },
+    { AttrId::VolumeInformation, "$VOLUME INFORMATION" },
+    { AttrId::Data, "$DATA" },
+    { AttrId::IndexRoot, "$INDEX ROOT" },
+    { AttrId::IndexAllocation, "$INDEX ALLOCATION" },
+    { AttrId::Bitmap, "$BITMAP" },
+    { AttrId::ReparsePoint, "$REPARSE POINT" },
+    { AttrId::EAInformation, "$EA INFORMATION" },
+    { AttrId::EA, "$EA" },
+    { AttrId::PropertySet, "$PROPERTY SET" },
+    { AttrId::LoggedUtilityStream, "$LOGGED UTILITY STREAM" }
 };
 
 bool Info::parse(File* file) const {
@@ -203,7 +203,8 @@ ostream& operator<<(ostream& os, const Attr* attr) {
         os << "Attribute/" << outpair((uint)attr->length, attr->offset)
             << ": " <<  converter.to_bytes(w_name, w_name + attr->length) << tab;
         ldump(w_name, sizeof(*w_name) * attr->length);
-    } else if (!Context::debug) os << endl;
+    } 
+    if (!Context::debug) os << endl;
 
     if (attr->noRes) {
         auto data = reinterpret_cast<const char*>(attr) + attr->nonres.runlist;
