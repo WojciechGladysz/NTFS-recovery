@@ -1,42 +1,25 @@
-#ifndef __NTFS_recovery__
-#define __NTFS_recovery__
-
+#pragma once
 #include <iostream>
-#include <cstdint>
-#include <set>
 #include <ctime>
 #include <string>
-#include <semaphore.h>
 #include <thread>
 
-using namespace std;
-using LBA = uint64_t;
+#include <cstdint>
+
 using VCN = uint64_t;
+using namespace std;
 
-void confirm();
-void dump(LBA, const vector<char>&);
-
-#define outchar(data) dec << static_cast<uint16_t>(data) << 'x' << hex << uppercase << static_cast<uint16_t>(data) << dec
-#define outvar(data) dec << data << 'x' << hex << uppercase << data << dec
-#define outtime(time) time << hex << 'x' << uint64_t(time) << dec
-#define outpair(length, size) dec << length << '/' << size
-#define outpaix(length, size) hex << uppercase << 'x' << length << "/x" << size << dec
-
-const size_t sectorSize = 512;
-const size_t sectorsPerCluster = 8;
+enum class Time:uint64_t;
+class File;
 
 enum class AttrId: __attribute__ ((packed)) uint32_t;
-enum class Time:uint64_t;
-enum class Time_t:uint64_t;
-
-class File;
 
 struct __attribute__ ((packed)) Boot {
     static const uint8_t jmp[];
     uint8_t     jmpCode[3];
     char        oemId[8];
-    uint16_t    bytesPerSector;     // 0x0B
-    uint8_t     sectorsPerCluster;  // 0x0D
+    uint16_t    sector;     // 0x0B
+    uint8_t     sectors;            // 0x0D
     char        unused0[7];         // 0x0E, checked when volume is mounted
     uint8_t     mediaId;            // 0x15
     char        unused1[2];         // 0x16
@@ -200,7 +183,6 @@ struct __attribute__ ((packed)) Index {
 
     Header      header[];
     operator bool() const;
-    friend ostream& operator<<(ostream& os, const Index*);
 };
 
 struct __attribute__ ((packed)) Entry {
@@ -227,95 +209,8 @@ struct __attribute__ ((packed)) Entry {
     uint32_t    rec;
 
     operator bool() const;
-    bool inUse() const { return flags & USE; }
-    bool isDir() const { return flags & DIR; }
-    friend ostream& operator<<(ostream& os, const Entry*);
+    bool used() const { return flags & USE; }
+    bool dir() const { return flags & DIR; }
 };
 
-enum class Format{ None, Year, Month, Day };
-enum class Verbose { Normal, Verbose, Debug };
-ostream& operator<<(ostream&, File&);
-ifstream& operator>>(ifstream&, File& file);
-
-class Context;
-
-class File
-{
-	pid_t	pid;
-    bool	valid;
-    bool	done;
-    bool	used;
-    bool	exists;
-    bool	dir;
-	bool	error;
-    LBA lba;
-    uint32_t index;
-    string name;
-    string ext;
-    string path;
-    Time_t time;
-    Time_t access;
-    uint64_t size;
-    uint64_t alloc;
-    uint64_t magic;
-    ofstream ofs;
-    vector<pair<uint32_t, uint32_t>> runlist;
-    vector<string> entries;
-    const char* content;
-    Context& context;
-    string getType() const;
-    void mangle();
-    bool open();
-    bool hit(const set<string>, bool);
-    public:
-    File(LBA, const vector<char>&, Context&);
-    bool parse();
-    void recover();
-    operator bool() const { return valid; }
-    friend bool StandardInfo::parse(File*) const;
-    friend bool Runlist::parse(File*) const;
-    friend bool FileName::parse(File*) const;
-    friend bool IndexRoot::parse(File*) const;
-    friend bool Resident::parse(File*) const;
-    friend bool NonResident::parse(File*) const;
-    friend Attr* Attr::parse(File*) const;
-    friend ostream& operator<<(ostream&, File&);
-    friend ostream& operator<<(ostream&, const time_t&);
-    friend ifstream& operator>>(ifstream&, File&file);
-    friend void recover(File);
-};
-
-struct Context {
-    string          dev;    // device to scan and recover
-    LBA				offset;
-    LBA				start, stop;
-    int64_t			count;
-    int64_t			show;
-    set<string>		include, exclude;
-    uid_t			user;
-    gid_t			group;
-    string			dir;	// recovery target directory
-    uint64_t		magic;
-    bool			all;   	// show all including not valid
-    bool			recover;
-    bool            force;
-    bool            extra;
-    ofstream        dirFile, extFile;
-    static bool     verbose;
-    static bool     debug;
-    static bool     confirm;
-    size_t          size;
-	uint			threads;
-    sem_t*          sem;
-
-    void extensions(string);
-    void exclutions(string);
-    Format format;
-    Context();
-    ~Context() { sem_destroy(sem); };
-    const set<string>& getIncludes() const { return include; }
-    const set<string>& getExcludes() const { return exclude; }
-};
-
-ostream& operator<<(ostream&, const Context&);
-#endif
+ostream& operator<<(ostream&, const Entry*);

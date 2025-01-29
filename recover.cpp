@@ -10,17 +10,14 @@
 #include <cstdlib>
 #include <sys/wait.h>
 
-#include "ntfs.hpp"
+#include "helper.hpp"
+#include "context.hpp"
+#include "file.hpp"
 
 using namespace std;
 using namespace filesystem;
 
-bool Context::verbose = false;
-bool Context::debug = false;
-bool Context::confirm = false;
-
 int main(int n, char** argv) {
-    uint sectors = 8;
     bool help = false;
 
     Context context;
@@ -39,19 +36,19 @@ int main(int n, char** argv) {
                 context.verbose = true;
                 continue;
             }
-            if (*arg == 'Y') { context.format = Format::Year; continue; }
-            if (*arg == 'M') { context.format = Format::Month; continue; }
-            if (*arg == 'D') { context.format = Format::Day; continue; }
+            if (*arg == 'Y') { context.format = Context::Format::Year; continue; }
+            if (*arg == 'M') { context.format = Context::Format::Month; continue; }
+            if (*arg == 'D') { context.format = Context::Format::Day; continue; }
             if (*arg == 'f') { context.force = true; continue; }
             if (*arg == 'd') { context.dev = string(++arg); break; }
-            if (*arg == 'l') { context.start = strtol(++arg, nullptr, 0); break; }
-            if (*arg == 'L') { context.stop = strtol(++arg, nullptr, 0); break; }
+            if (*arg == 'l') { context.first = strtol(++arg, nullptr, 0); break; }
+            if (*arg == 'L') { context.last = strtol(++arg, nullptr, 0); break; }
             if (*arg == 'n') { context.count = strtol(++arg, nullptr, 0); break; }
             if (*arg == 'm') { context.magic = strtol(++arg, nullptr, 0); break; }
             if (*arg == 's') { context.show = strtol(++arg, nullptr, 0); break; }
             if (*arg == 'S') { context.size = strtol(++arg, nullptr, 0) * (1 << 20 ); break; }
-            if (*arg == 'i') { context.extensions(++arg); break; }
-            if (*arg == 'x') { context.exclutions(++arg); break; }
+            if (*arg == 'i') { context.parse(++arg, context.include); break; }
+            if (*arg == 'x') { context.parse(++arg, context.exclude); break; }
             if (*arg == 'o') {
                 if (!*++arg) {
                     cerr << "Empty output directory. Aborting" << endl;
@@ -62,8 +59,8 @@ int main(int n, char** argv) {
             }
             if (*arg == 't') {
                 sem_destroy(context.sem);
-                context.threads = strtol(++arg, nullptr, 0);
-                sem_init(context.sem, 1, context.threads);
+                context.childs = strtol(++arg, nullptr, 0);
+                sem_init(context.sem, 1, context.childs);
                 break;
             }
         }
@@ -72,8 +69,8 @@ int main(int n, char** argv) {
     if (help) cout << R"EOF(options:
 -h      display this help message
 -d      device or file to open, example: /dev/sdc, /dev/sdd1, ./$MFT
--l      device first LBA to start the scan at, hex is ok with 0x
--L      device last LBA to stop the scan at, hex is ok with 0x
+-l      device LBA to start the scan from, hex is ok with 0x
+-L      device LBA to stop the scan before, hex is ok with 0x
 -o      recovery target directory/mount point, defaults to current directory
 -R      recover data to target directory, otherwise dry run
 -f      overwrite target file if exists, if file size is lower than MFT entry it will be overwitten
@@ -100,7 +97,7 @@ int main(int n, char** argv) {
 Parsed arguments:
 )EOF" << endl;
 
-    cerr << context << endl;
+    cerr << context;
     
     if (help) exit(EXIT_SUCCESS);
 
@@ -124,30 +121,31 @@ Parsed arguments:
         context.group = strtol(sudoGid, nullptr, 0);
     }
 
-    vector<char> buffer(sectorSize);
+    vector<char> buffer(context.sector);
 
     // scan for NTFS boot sector
     cerr << "Searching for MFT entries...\n" << endl;
 
-    LBA lba = context.start;
+    LBA lba = context.first;
     
-    if (!idev.seekg(lba * sectorSize)) {
+    if (!idev.seekg(lba * context.sector)) {
         cerr << "Device error: " << context.dev << endl
             << "Error: " << strerror(errno) << endl;
         exit(EXIT_FAILURE);
     }
 
     while (!idev.eof() && context.count--) {
-        lba = idev.tellg() / sectorSize;
-        if (context.stop && lba >= context.stop) break;
-        buffer.resize(sectorSize);
-        if (!idev.read(buffer.data(), sectorSize)) {
+        lba = idev.tellg() / context.sector;
+        if (context.last && lba >= context.last) break;
+        buffer.resize(context.sector);
+        if (!idev.read(buffer.data(), context.sector)) {
             cerr << "Device read error at: " << outvar(lba) << endl;
             exit(EXIT_FAILURE);
         }
         Boot* boot = reinterpret_cast<Boot*>(buffer.data());
         if (*boot) {
-            sectors = boot->sectorsPerCluster;
+            context.sector = boot->sector;
+            context.sectors = boot->sectors;
             dump(lba, buffer);
             cout << boot;
             confirm();
@@ -156,9 +154,9 @@ Parsed arguments:
 
         Index* index = reinterpret_cast<Index*>(buffer.data());
         if (*index) {
-            buffer.resize(sectorSize * sectorsPerCluster);
-            size_t more = buffer.size() - sectorSize;
-            if (!idev.read(buffer.data() + sectorSize, more)) {
+            buffer.resize(context.sector * context.sectors);
+            size_t more = buffer.size() - context.sector;
+            if (!idev.read(buffer.data() + context.sector, more)) {
                 cerr << "Device read error at: " << hex << lba << endl;
                 exit(EXIT_FAILURE);
             }
@@ -190,9 +188,9 @@ Parsed arguments:
             continue;
         }
         if (alloc != buffer.size()) buffer.resize(alloc);
-        size_t more = alloc - sectorSize;
+        size_t more = alloc - context.sector;
         if (more) {
-            if (!idev.read(buffer.data() + sectorSize, more)) {
+            if (!idev.read(buffer.data() + context.sector, more)) {
                 cerr << "Device read error at: " << hex << lba << endl;
                 exit(EXIT_FAILURE);
             }
