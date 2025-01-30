@@ -28,7 +28,7 @@ bool ldump(const void* data, uint length, uint start) {
             txt.clear();
         }
     }
-    if (length > align) while (offset % align) {
+    if (length >= align) while (offset % align) {
         offset++;
         cout << "_ _";
         if (!(offset % 8) && (offset % align))

@@ -190,7 +190,6 @@ bool Name::parse(File* file) const {
 }
 
 ostream& operator<<(ostream& os, const Attr* attr) {
-    bool endline = !attr->noRes;
     os << attr->id << "." << attrName[attr->type] << '/' << outpaix((uint)attr->type, attr->size) << tab;
     pdump(attr, &attr->res);
 
@@ -201,17 +200,16 @@ ostream& operator<<(ostream& os, const Attr* attr) {
         const char16_t* w_name = reinterpret_cast<const char16_t*>((char*)attr + attr->offset);
         os << "Attribute/" << outpair((uint)attr->length, attr->offset)
             << ": " <<  converter.to_bytes(w_name, w_name + attr->length) << tab;
-        endline = !ldump(w_name, sizeof(*w_name) * attr->length);
+        ldump(w_name, sizeof(*w_name) * attr->length);
     }
+    if (!Context::debug) os << endl;
 
     if (attr->noRes) {
-        if (endline) os << endl;
         const auto data = reinterpret_cast<const char*>(attr) + attr->nonres.runlist;
         ldump(data, attr->size - attr->nonres.runlist);
         os << (Runlist*)data;
     }
     else {
-        if (endline) os << endl;
         const auto data = reinterpret_cast<const char*>(attr) + attr->res.offset;
         if (attr->type == AttrId::StandardInfo) os << reinterpret_cast<const Info*>(data);
         else if (attr->type == AttrId::FileName) os << reinterpret_cast<const Name*>(data);
