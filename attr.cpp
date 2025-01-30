@@ -194,7 +194,7 @@ ostream& operator<<(ostream& os, const Attr* attr) {
     pdump(attr, &attr->res);
 
     if (attr->noRes) os << attr->nonres;
-    else os << attr->res;
+    // else os << attr->res;
 
     if (attr->length) { // attribute yield alternate data stream
         const char16_t* w_name = reinterpret_cast<const char16_t*>((char*)attr + attr->offset);
@@ -301,20 +301,11 @@ bool Runlist::parse(File* file) const {
     return true;
 }
 
-ostream& operator<<(ostream& os, const Header* attr) {
-    os << "Header: ";
-    pdump(attr, attr->node);
-    os << "offset: " << outvar(attr->offset) << tab
-        << "size: " << outvar(attr->size) << tab
-        << "allocated: " << outvar(attr->allocated) << tab
-        << "flags: " << outvar(attr->flags) << endl;
-    return os;
-}
-
 ostream& operator<<(ostream& os, const Node* attr) {
     ldump(attr, attr->size);
-    os << "index: " << outvar(attr->index) << tab
-        << "size:" << outvar(attr->size) << tab
+    os << "index: " << outvar(attr->index) << tab;
+    if (Context::debug)
+        os << "size:" << outvar(attr->size) << tab
         << "name end: " << outvar(attr->end) << tab
         << "flags: " << outchar(attr->flags);
     if (attr->flags & SUB) os << "/SUB";
@@ -335,6 +326,23 @@ ostream& operator<<(ostream& os, const Node* attr) {
     return os;
 }
 
+ostream& operator<<(ostream& os, const Header* attr) {
+    os << "Header: ";
+    pdump(attr, attr->node);
+    os << "offset: " << outvar(attr->offset) << tab
+        << "size: " << outvar(attr->size) << tab
+        << "allocated: " << outvar(attr->allocated) << tab
+        << "flags: " << outchar(attr->flags);
+    if (attr->flags & LARGE) os << "/LARGE" << endl;
+    const Node* last = reinterpret_cast<const Node*>((char*)attr + attr->size);
+    const Node* node = reinterpret_cast<const Node*>((char*)attr + attr->offset);
+    while (node < last && !(node->flags & LAST)) {
+        os << node;
+        node = reinterpret_cast<const Node*>((char*)node + node->size);
+    }
+    return os;
+}
+
 ostream& operator<<(ostream& os, const Root* attr) {
     os << "Root: " << tab;
     pdump(attr, attr->header);
@@ -343,21 +351,14 @@ ostream& operator<<(ostream& os, const Root* attr) {
         << "size: " << outvar(attr->size) << tab
         << "clusters: " << outchar(attr->clusters) << endl;
     os << attr->header;
-    const Node* last = reinterpret_cast<const Node*>((char*)attr + attr->header->size);
-    const Node* node = reinterpret_cast<const Node*>((char*)attr->header + attr->header->offset);
-    while (node < last && node->index && node->size) {
-        os << node;
-        if (node->flags & LAST) break;
-        node = reinterpret_cast<const Node*>((char*)node + node->size);
-    }
     return os;
 }
 
 bool Root::parse(File* file) const {
     string name;
     const Node* node = reinterpret_cast<const Node*>((char*)header + header->offset);
-    const Node* last = reinterpret_cast<const Node*>((char*)this + header->size);
-    while (node < last && node->index && node->size) {
+    const Node* last = reinterpret_cast<const Node*>((char*)header + header->size);
+    while (node < last && !(node->flags & LAST)) {
         try {
             const char16_t* start = reinterpret_cast<const char16_t*>(node->name);
             const char16_t* end = reinterpret_cast<char16_t*>((char*)node->data + node->end);

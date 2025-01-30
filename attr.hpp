@@ -59,7 +59,7 @@ struct __attribute__ ((packed)) Node {
 #define SUB     (1 << 0)
 #define LAST    (1 << 1)
     uint8_t     flags;
-    uint8_t     unused[3];
+    uint8_t     padding[3];
     uint64_t    data[8];
     uint16_t    length;
     char16_t    name[];
@@ -70,7 +70,9 @@ struct __attribute__ ((packed)) Header {
     uint32_t    offset;
     uint32_t    size;
     uint32_t    allocated;
-    uint32_t    flags;
+#define LARGE   (1 << 0)
+    uint8_t    flags;
+    uint8_t    padding[3];
     Node   node[];
     friend ostream& operator<<(ostream&, const Header*);
 };
@@ -80,7 +82,7 @@ struct __attribute__ ((packed)) Root {
     uint32_t    collation;
     uint32_t    size;
     uint8_t     clusters;
-    uint8_t     unused[3];
+    uint8_t     padding[3];
     Header      header[];
     bool        parse(File* file) const;
     friend ostream& operator<<(ostream&, const Root*);
@@ -106,7 +108,7 @@ struct __attribute__ ((packed)) Resident {
     uint32_t    length;
     uint16_t    offset;
     uint8_t     indexed;
-    uint8_t     unused;
+    uint8_t     padding;
     bool        parse(File* file) const { return true; }
     friend ostream& operator<<(ostream&, const Resident*);
 };
@@ -116,7 +118,7 @@ struct __attribute__ ((packed)) Nonres {
     VCN    last;
     uint16_t    runlist;
     uint16_t    compress;
-    uint8_t     unused[4];
+    uint8_t     padding[4];
 
     uint64_t    size;
     uint64_t    alloc;

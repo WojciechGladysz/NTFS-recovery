@@ -82,7 +82,8 @@ ostream& operator<<(ostream& os, const File& file) {
     else os << "resident" << tab;
 
     if (file.dir && !file.entries.empty()) {
-        for (string entry: file.entries) os << entry << '\t';
+        os << endl;
+        for (string entry: file.entries) os << tab << entry;
     }
 
     return os << endl;
