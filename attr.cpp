@@ -81,7 +81,7 @@ bool Info::parse(File* file) const {
     return true;
 }
 
-Attr* Attr::getNext() const {
+const Attr* Attr::getNext() const {
     Attr* next = (Attr*)((char*)this + (size & 0xFFFF));
     // if (size > 0xFFFF) cerr << "Bad offset to next attr. using 0XFFFF mask" << endl;
     if (next->type == AttrId::End) return nullptr;
@@ -121,15 +121,13 @@ ostream& operator<<(ostream& os, const Resident attr) {
     return os;
 }
 
-bool Resident::parse(File* file) const {
-    return true;
-}
-
 ostream& operator<<(ostream& os, const Nonres attr) {
     os << "Nonresident" << endl;
-    ldump(&attr, sizeof(attr));
+    pdump(&attr, attr.data);
     os << "first: " << outvar(attr.first) << tab
         << "last: " << outvar(attr.last) << tab
+        << "offset: " << outvar(attr.runlist) << tab
+        << "compress: " << outvar(attr.compress) << tab
         << "size: " << outvar(attr.size) << tab
         << "alloc: " << outvar(attr.alloc) << tab
         << "used: " << outvar(attr.used) << endl;
@@ -192,27 +190,29 @@ bool Name::parse(File* file) const {
 }
 
 ostream& operator<<(ostream& os, const Attr* attr) {
+    bool endline = !attr->noRes;
     os << attr->id << "." << attrName[attr->type] << '/' << outpaix((uint)attr->type, attr->size) << tab;
     pdump(attr, &attr->res);
 
     if (attr->noRes) os << attr->nonres;
     else os << attr->res;
 
-    if (attr->length) { // alternate data stream
+    if (attr->length) { // attribute yield alternate data stream
         const char16_t* w_name = reinterpret_cast<const char16_t*>((char*)attr + attr->offset);
         os << "Attribute/" << outpair((uint)attr->length, attr->offset)
             << ": " <<  converter.to_bytes(w_name, w_name + attr->length) << tab;
-        ldump(w_name, sizeof(*w_name) * attr->length);
-    } 
-    if (!Context::debug) os << endl;
+        endline = !ldump(w_name, sizeof(*w_name) * attr->length);
+    }
 
     if (attr->noRes) {
-        auto data = reinterpret_cast<const char*>(attr) + attr->nonres.runlist;
+        if (endline) os << endl;
+        const auto data = reinterpret_cast<const char*>(attr) + attr->nonres.runlist;
         ldump(data, attr->size - attr->nonres.runlist);
         os << (Runlist*)data;
     }
     else {
-        auto data = reinterpret_cast<const char*>(attr) + attr->res.offset;
+        if (endline) os << endl;
+        const auto data = reinterpret_cast<const char*>(attr) + attr->res.offset;
         if (attr->type == AttrId::StandardInfo) os << reinterpret_cast<const Info*>(data);
         else if (attr->type == AttrId::FileName) os << reinterpret_cast<const Name*>(data);
         else if (attr->type == AttrId::IndexRoot) os << reinterpret_cast<const Root*>(data);
@@ -226,7 +226,7 @@ ostream& operator<<(ostream& os, const Attr* attr) {
     return os;
 }
 
-Attr* Attr::parse(File* file) const {
+const Attr* Attr::parse(File* file) const {
     if (noRes) {
         auto data = reinterpret_cast<const char*>(this) + nonres.runlist;
         if (type == AttrId::Data && !length) { // no alternate data stream
@@ -304,56 +304,42 @@ bool Runlist::parse(File* file) const {
 }
 
 ostream& operator<<(ostream& os, const Header* attr) {
-    if (Context::verbose) os << "Header: ";
+    os << "Header: ";
     pdump(attr, attr->node);
-    if (Context::verbose) {
     os << "offset: " << outvar(attr->offset) << tab
         << "size: " << outvar(attr->size) << tab
         << "allocated: " << outvar(attr->allocated) << tab
         << "flags: " << outvar(attr->flags) << endl;
-    }
     return os;
 }
 
 ostream& operator<<(ostream& os, const Node* attr) {
     ldump(attr, attr->size);
-    if (Context::verbose) {
-        os << "index: " << outvar(attr->index) << tab
-            << "size:" << outvar(attr->size) << tab
-            << "name end: " << outvar(attr->offset + offsetof(Node, unused)) << tab
-            << "flags: " << hex << attr->flags << tab;
-    }
-    if (attr->length) {
+    os << "index: " << outvar(attr->index) << tab
+        << "size:" << outvar(attr->size) << tab
+        << "name end: " << outvar(attr->end) << tab
+        << "flags: " << outchar(attr->flags);
+    if (attr->flags & SUB) os << "/SUB";
+    if (attr->flags & LAST) os << "/LAST";
+    os << tab;
+    if (!(attr->flags & LAST)) {
         try {
-            os << tab << dec << attr->index << '/'
-                << converter.to_bytes(&attr->name, &attr->name + attr->length);
+            const char16_t* start = reinterpret_cast<const char16_t*>(attr->name);
+            const char16_t* end = reinterpret_cast<const char16_t*>((char*)attr->data + attr->end);
+            os << dec << attr->index << '/'
+                << converter.to_bytes(start, end)
+                << tab;
         }
         catch (...) { os << "name exception"; }
     }
-    else os << "no names";
-    if (Context::verbose) os << endl;
+    if (attr->flags & SUB) cout << *reinterpret_cast<VCN*>((char*)attr + attr->size - 8);
+    os << endl;
     return os;
 }
 
-bool Root::parse(File* file) const {
-    string name;
-    const Node* node = reinterpret_cast<const Node*>((char*)header + header->offset);
-    const Node* last = reinterpret_cast<const Node*>((char*)this + header->size);
-    while (node < last && node->index && node->size) {
-        try {
-            name = converter.to_bytes(&node->name, &node->name + node->length);
-            file->entries.push_back(name);
-            node = reinterpret_cast<const Node*>((const char*)node + node->size);
-        }
-        catch (...) {
-            node = reinterpret_cast<const Node*>((const char*)node + node->size);
-        }
-    }
-    return true;
-}
-
 ostream& operator<<(ostream& os, const Root* attr) {
-    ldump(attr, attr->header->size);
+    os << "Root: " << tab;
+    pdump(attr, attr->header);
     os << "type: " << outvar((uint64_t)attr->type) << tab
         << "collation: " << outvar(attr->collation) << tab
         << "size: " << outvar(attr->size) << tab
@@ -363,9 +349,30 @@ ostream& operator<<(ostream& os, const Root* attr) {
     const Node* node = reinterpret_cast<const Node*>((char*)attr->header + attr->header->offset);
     while (node < last && node->index && node->size) {
         os << node;
+        if (node->flags & LAST) break;
         node = reinterpret_cast<const Node*>((char*)node + node->size);
     }
     return os;
+}
+
+bool Root::parse(File* file) const {
+    string name;
+    const Node* node = reinterpret_cast<const Node*>((char*)header + header->offset);
+    const Node* last = reinterpret_cast<const Node*>((char*)this + header->size);
+    while (node < last && node->index && node->size) {
+        try {
+            const char16_t* start = reinterpret_cast<const char16_t*>(node->name);
+            const char16_t* end = reinterpret_cast<char16_t*>((char*)node->data + node->end);
+            name = converter.to_bytes(start, end);
+            file->entries.push_back(name);
+            if (node->flags & LAST) break;
+            node = reinterpret_cast<const Node*>((const char*)node + node->size);
+        }
+        catch (...) {
+            node = reinterpret_cast<const Node*>((const char*)node + node->size);
+        }
+    }
+    return true;
 }
 
 ostream& operator<<(ostream& os, const Name* attr) {

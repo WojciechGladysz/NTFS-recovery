@@ -29,6 +29,11 @@ struct Context {
     void parse(const string&, set<string>&);
     Format format;
     Context();
+    bool stop(LBA lba) {
+        if (!count--) return true;
+        if (last) return !(lba < last);
+        return false;
+    } 
     ~Context() { sem_destroy(sem); };
     void dec() { if (!--show) count = 0; }
 };

@@ -44,11 +44,14 @@ ostream& operator<<(ostream& oss, const Context& context) {
         oss << ", ";
     }
     oss << "pid:" << getpid() << endl;
-    if (context.recover) oss << "RECOVER to target dir: " << context.dir;
-    if (context.force) oss << ", overwrite existing files";
+    if (context.recover) {
+        oss << "RECOVER to target dir: " << context.dir;
+        if (context.force) oss << ", overwrite existing files";
+        oss << endl;
+    }
     if (context.last && context.first > context.last)
-        cerr << "End lba lower that start lba";
-    return oss << endl << endl;
+        cerr << "End lba lower that start lba" << endl;
+    return oss << endl;
 }
 
 Context::Context(): dir("."), count(-1L), show(-1L), sector(512), sectors(8) {

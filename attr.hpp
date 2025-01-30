@@ -21,7 +21,6 @@ struct __attribute__ ((packed)) Info {
     Time        accessTime;
     uint32_t    attr;
     bool        parse(File*) const;
-    friend ostream& operator<<(ostream& os, const Info*);
 };
 
 struct __attribute__ ((packed)) Name {
@@ -48,20 +47,23 @@ struct __attribute__ ((packed)) Name {
     }
     string      getName() const;
     bool        parse(File* file) const;
-    friend ostream& operator<<(ostream& os, const Name*);
+    friend ostream& operator<<(ostream&, const Name*);
 };
 
 struct __attribute__ ((packed)) Node {
     uint64_t    index:48;
     uint16_t    unknown1:16;
+
     uint16_t    size;
-    uint16_t    offset;
-    uint32_t    flags;
-    uint64_t    unused[8];
-    uint8_t     length;
-    uint8_t     unknown2;
-    char16_t    name;
-    friend ostream& operator<<(ostream& os, const Node*);
+    uint16_t    end;
+#define SUB     (1 << 0)
+#define LAST    (1 << 1)
+    uint8_t     flags;
+    uint8_t     unused[3];
+    uint64_t    data[8];
+    uint16_t    length;
+    char16_t    name[];
+    friend ostream& operator<<(ostream&, const Node*);
 };
 
 struct __attribute__ ((packed)) Header {
@@ -70,7 +72,7 @@ struct __attribute__ ((packed)) Header {
     uint32_t    allocated;
     uint32_t    flags;
     Node   node[];
-    friend ostream& operator<<(ostream& os, const Header);
+    friend ostream& operator<<(ostream&, const Header*);
 };
 
 struct __attribute__ ((packed)) Root {
@@ -81,7 +83,7 @@ struct __attribute__ ((packed)) Root {
     uint8_t     unused[3];
     Header      header[];
     bool        parse(File* file) const;
-    friend ostream& operator<<(ostream& os, const Root*);
+    friend ostream& operator<<(ostream&, const Root*);
 };
 
 struct __attribute__ ((packed)) Runlist {
@@ -97,7 +99,7 @@ struct __attribute__ ((packed)) Runlist {
         };
     };
     bool    parse(File* file) const;
-    friend ostream& operator<<(ostream& os, const Runlist*);
+    friend ostream& operator<<(ostream&, const Runlist*);
 };
 
 struct __attribute__ ((packed)) Resident {
@@ -105,23 +107,24 @@ struct __attribute__ ((packed)) Resident {
     uint16_t    offset;
     uint8_t     indexed;
     uint8_t     unused;
-    bool        parse(File* file) const;
-    friend ostream& operator<<(ostream& os, const Resident*);
+    bool        parse(File* file) const { return true; }
+    friend ostream& operator<<(ostream&, const Resident*);
 };
 
 struct __attribute__ ((packed)) Nonres {
     VCN    first;
     VCN    last;
     uint16_t    runlist;
-    uint16_t    compres;
+    uint16_t    compress;
     uint8_t     unused[4];
 
     uint64_t    size;
     uint64_t    alloc;
     uint64_t    used;
-    uint16_t    getRun() const { return runlist; }
+    char        data[];
+
     bool        parse(File*) const;
-    friend ostream& operator<<(ostream& os, const Nonres*);
+    friend ostream& operator<<(ostream&, const Nonres*);
 };
 
 struct __attribute__ ((packed)) Attr {
@@ -137,10 +140,10 @@ struct __attribute__ ((packed)) Attr {
         Resident    res;
         Nonres      nonres;
     };
-    Attr* getNext() const;
+    const Attr* getNext() const;
     uint16_t getDir(string& name) const;
-    Attr* parse(File* file) const;
-    friend ostream& operator<<(ostream& os, const Attr*);
+    const Attr* parse(File* file) const;
+    friend ostream& operator<<(ostream&, const Attr*);
 };
 
 ostream& operator<<(ostream& os, const Time time);

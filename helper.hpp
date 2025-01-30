@@ -14,8 +14,8 @@ using namespace std;
 
 using LBA = uint64_t;
 
-void ldump(const void*, uint, uint = 0);
-void pdump(const void*, const void*);
-void dump(LBA, const vector<char>&);
+bool ldump(const void*, uint, uint = 0);
+bool pdump(const void*, const void*);
+bool dump(LBA, const vector<char>&);
 void confirm();
 string& lower(string&);

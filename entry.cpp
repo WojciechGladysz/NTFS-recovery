@@ -19,6 +19,7 @@ struct __attribute__ ((packed)) Index {
 
     Header      header[];
     operator bool() const;
+    friend ostream& operator<<(ostream&, const Index*);
 };
 
 Boot::operator bool() const {
@@ -35,7 +36,7 @@ uint32_t Boot::getSize() const {
 
 ostream& operator<<(ostream& os, const Boot* boot) {
     uint64_t total = boot->total*boot->sector;
-    os << "boot: " << boot->oemId << endl
+    os << "Boot: " << boot->oemId << endl
         << "bytes per sector: " << outvar(boot->sector) << endl
         << "sectors per cluster: " << outchar(boot->sectors) << endl
         << "media: " << outchar(boot->mediaId) << endl
@@ -47,8 +48,7 @@ ostream& operator<<(ostream& os, const Boot* boot) {
         << "mirror: " << outvar(boot->mirror) << endl
         << "size: " << outvar(boot->getSize()) << endl
         << "record: " << outchar(boot->record) << endl
-        << "serial: " << outvar(boot->serial) << endl
-        << endl;
+        << "serial: " << outvar(boot->serial) << endl;
     return os;
 };
 
@@ -59,14 +59,13 @@ Index::operator bool() const {
 ostream& operator<<(ostream& os, const Index* index)
 {
     if (Context::debug) os << endl;
-    os << "indx/" << index->vnc;
-    pdump(index, index->header);
+    os << "indx/" << index->vnc << tab;
+    if (!pdump(index, index->header) && Context::verbose) os << endl;
     if (Context::verbose)
-        os << "\tfixup: " << outvar(index->fixup) << tab
+        os << "fixup: " << outvar(index->fixup) << tab
             << "entries: " << outvar(index->entries) << tab
             << "log sequence: " << outvar(index->logSeq) << tab
             << "vnc: " << outvar(index->vnc) << endl;
-    if (Context::debug) os << endl;
     const Node* node = reinterpret_cast<const Node*>((char*)index->header + index->header->offset);
     const Node* last = reinterpret_cast<const Node*>((char*)index + index->header->size);
     while (node < last ) {
@@ -105,7 +104,7 @@ ostream& operator<<(ostream& os, const Record* record) {
         << "next: " << outvar(record->next) << endl
         << endl
         << "Attributes:\n" << endl;
-    const Attr* next = (Attr*)(record->key + record->attr);
+    const Attr* next = reinterpret_cast<const Attr*>(record->key + record->attr);
     while (next) {
         if (Context::debug) os << '@' << hex << ((char*)next - record->key) << ": ";
         os << next << endl;
@@ -129,9 +128,9 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
         exit(EXIT_FAILURE);
     }
 
-    Boot* boot = reinterpret_cast<Boot*>(entry.data());
+    const Boot* boot = reinterpret_cast<Boot*>(entry.data());
     if (*boot) {
-        cout << '\r' << hex << uppercase << 'x' << lba << '\t';
+        cout << endl << hex << uppercase << 'x' << lba << tab;
         entry.context.sector = boot->sector;
         entry.context.sectors = boot->sectors;
         dump(lba, entry);
@@ -141,7 +140,7 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
         return ifs;
     }
 
-    Index* index = reinterpret_cast<Index*>(entry.data());
+    const Index* index = reinterpret_cast<Index*>(entry.data());
     if (entry.context.index && *index) {
         entry.resize(entry.context.sector * entry.context.sectors);
         size_t more = entry.size() - entry.context.sector;
@@ -149,7 +148,7 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
             cerr << "Device read error at: " << hex << lba << endl;
             exit(EXIT_FAILURE);
         }
-        cout << '\r' << hex << uppercase << 'x' << lba << '\t';
+        cout << endl << hex << uppercase << 'x' << lba << tab;
         Index* index = reinterpret_cast<Index*>(entry.data());
         dump(lba, entry);
         cout << index;
@@ -160,17 +159,17 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
 
     if (!entry) {
         if (entry.context.debug) {
-            cout << endl;
+            cout << endl << hex << uppercase << 'x' << lba << tab;
             dump(lba, entry);
             confirm();
         }
         return ifs;;
     }
 
-    Record* record = reinterpret_cast<Record*>(entry.data());
+    const Record* record = reinterpret_cast<Record*>(entry.data());
     auto alloc = record->alloc;
     if (alloc > (1<<16)) {
-        cout << "Not resizing to " << outvar(alloc) << endl;
+        cout << endl << "Not resizing to " << outvar(alloc) << endl;
         dump(lba, entry);
         cout << endl << "Skipping currupted entry:"
             << hex << uppercase << 'x' << lba << ':' << endl << record;
@@ -182,7 +181,7 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
     size_t more = alloc - entry.context.sector;
     if (more) {
         if (!ifs.read(entry.data() + entry.context.sector, more)) {
-            cerr << "Device read error at: " << hex << lba << endl;
+            cerr << endl << "Device read error at: " << hex << lba << endl;
             exit(EXIT_FAILURE);
         }
     }
@@ -190,10 +189,9 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
     auto size = record->size;
     entry.resize(size);
     dump(lba, entry);
-    if (entry.context.debug) cout << endl;
     if (entry.context.verbose) {
         record = reinterpret_cast<Record*>(entry.data());
-        cout << hex << uppercase << 'x' << lba << ':' << endl << record;
+        cout << endl << hex << uppercase << 'x' << lba << tab <<record;
     }
     return ifs;
 }

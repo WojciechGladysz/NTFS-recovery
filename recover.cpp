@@ -128,9 +128,9 @@ Parsed arguments:
         exit(EXIT_FAILURE);
     }
 
-    while (!idev.eof() && context.count--) {
+    while (!idev.eof()) {
         lba = idev.tellg() / context.sector;
-        if (context.last && lba >= context.last) break;
+        if (context.stop(lba)) break;
         Entry entry(context);
         idev >> entry;
         if (!entry) continue;

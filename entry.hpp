@@ -34,7 +34,6 @@ struct __attribute__ ((packed)) Boot {
     uint16_t    endTag;
     operator bool() const;
     uint32_t getSize() const;
-    friend ostream& operator<<(ostream& os, const Boot*);
 };
 
 struct __attribute__ ((packed)) Record {

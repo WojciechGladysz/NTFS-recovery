@@ -6,8 +6,8 @@
 
 using namespace std;
 
-void ldump(const void* data, uint length, uint start) {
-    if (!Context::debug) return;
+bool ldump(const void* data, uint length, uint start) {
+    if (!Context::debug) return false;
     uint end = start + length;
     string txt; // for ASCII display
     const auto align = 32;
@@ -37,17 +37,18 @@ void ldump(const void* data, uint length, uint start) {
             cout << '\t' << txt << endl;
     }
     else cout << tab << txt << endl;
-};
-
-void pdump(const void* start, const void* end) {
-    uint length = reinterpret_cast<const char*>(end) - reinterpret_cast<const char*>(start);
-    ldump(start, length);
+    return true;
 }
 
-void dump(LBA lba, const vector<char>& data) {
-    if (!Context::debug) return;
+bool pdump(const void* start, const void* end) {
+    uint length = reinterpret_cast<const char*>(end) - reinterpret_cast<const char*>(start);
+    return ldump(start, length);
+}
+
+bool dump(LBA lba, const vector<char>& data) {
+    if (!Context::debug) return false;
     cout << "offset: " << outvar(lba) << endl;
-    ldump(data.data(), (uint)data.size()); 
+    return ldump(data.data(), (uint)data.size()); 
 }
 
 string& lower(string& text) {
