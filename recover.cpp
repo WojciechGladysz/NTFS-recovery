@@ -140,12 +140,9 @@ Parsed arguments:
     }
     idev.close();
     cerr << "\033[2K\r";
-    if (context.verbose) {
-        cerr << "Wait for child processes... ";
-        int id;
-        while (id = wait(NULL), id > 0)
-            cerr << id << ',';
-    }
+    cerr << "Wait for child processes... ";
+    int id;
+    while (id = wait(NULL), id > 0) cerr << id << ',';
     cerr << "done" << endl;
     return 0;
 }

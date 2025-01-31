@@ -170,6 +170,7 @@ ifstream& operator>>(ifstream& ifs, File& file)
     utimbuf times;
     vector<char> buffer(file.context.sector * file.context.sectors);
     streamsize chunk, bytes = file.size;
+    uint64_t written = 0;
     uint64_t magic, mask = 0;
     magic = file.context.magic;
     while (magic) {
@@ -181,7 +182,7 @@ ifstream& operator>>(ifstream& ifs, File& file)
             int64_t first = run.first * file.context.sectors;
             first += file.context.bias;
             if (first < 0) {
-                cerr << "Runlist LBA negative: " << outpaix(first, file.context.bias)
+                cerr << "Runlist LBA negative: " << first
                     << ". Try scanning disk device not partition or partition not a file" << endl;
                 file.error = true;
                 confirm;
@@ -209,9 +210,8 @@ ifstream& operator>>(ifstream& ifs, File& file)
                     }
                 }
                 file.ofs.write(buffer.data(), chunk);
+                written += chunk;
                 bytes -= chunk;
-                if (bytes > file.size)
-                    cerr << "Bytes left math error: " << outpair(bytes, file.size) << endl;
             }
         }
     else if(file.content) {
@@ -266,8 +266,8 @@ bool File::open()
         struct stat info;
         stat(full.c_str(), &info);
         if (context.verbose) cerr << "File exists: " << full;
-        if (size <= info.st_size && !context.force) {   // check file size against MFT record
-            if (context.verbose) cerr << ", and its size is OK. Skipping" << endl;
+        if ((time_t) time >= info.st_mtime && size >= info.st_size && !context.force) {   // check file size against MFT record
+            if (context.verbose) cerr << ", and its date is OK. Skipping" << endl;
             done = true;
             exists = true;
             return false;
