@@ -32,6 +32,7 @@ struct File
     bool open();
     bool hit(const set<string>&, bool);
     bool parse();
+    bool empty() const;
     operator bool() const { return valid; }
     File(LBA, const Record*, struct Context&);
     void recover();

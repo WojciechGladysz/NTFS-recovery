@@ -28,7 +28,7 @@ ostream& operator<<(ostream& oss, const Context& context) {
         for (auto extension: context.exclude) oss << extension << ",";
         oss << ' ';
     }
-    oss << "processes:" << context.childs << ", ";
+    oss << "max child processes:" << context.childs << ", ";
     oss << "size:" << context.size / (1 << 20) << "MB, ";
     if (context.verbose) {
         if (!context.debug) oss << "verbose, ";

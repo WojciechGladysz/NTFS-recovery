@@ -143,7 +143,7 @@ Parsed arguments:
     if (context.verbose) {
         cerr << "Wait for child processes... ";
         int id;
-        while (id = wait(nullptr), id > 0)
+        while (id = wait(NULL), id > 0)
             cerr << id << ',';
     }
     cerr << "done" << endl;

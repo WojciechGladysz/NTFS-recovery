@@ -39,54 +39,17 @@ bool File::hit(const set<string>& entries, bool must) {  // return means continu
     return false;
 }
 
+bool File::empty() const { return runlist.empty() && !content; }
+
 string File::getType() const {
     if (!used) return "not used";
     if (!valid) return "not valid";
     if (dir) return "DIR";
     if (error) return "ERROR";
-    if (runlist.empty() && !content) return "empty";
+    if (empty()) return "empty";
     if (context.magic && context.magic != magic) return "no magic";
     if (!context.force && exists) return "exist";
     return "file";
-}
-
-ostream& operator<<(ostream& os, const File& file) {
-    // cerr << "File/" << file.index << ':' << file.valid << file.dir << file.exists << !!file.content << !file.runlist.empty() << endl;
-    os << "\033[2K\r";     // just print file basic info and return to line begin
-    os << hex << uppercase << 'x' << file.lba << tab
-        << file.getType() << '/' << dec << file.index
-        << tab << file.path << file.name;
-    if (!file.done) {
-        os << "...\r";     // just print file basic info and return to line begin
-        return os.flush();
-    }
-    if (!file.context.all) {
-        if (!file.valid || file.exists) return os;
-        if (!file.content && file.runlist.empty()) return os;
-    }
-    file.context.dec();
-    os << tab << file.time << tab;
-    if (!file.content) {
-        if (file.size) {
-            os << "size:" << (file.size > 1024? file.size/1024: file.size);
-            if (file.size > 1024) os << 'k';
-            os << tab;
-            if (!file.runlist.empty())
-                // LCN * sector size * sectors per cluster
-                for (auto run: file.runlist)
-                    // os << outpaix(run.first, run.second) << tab;
-                    os << outpaix(run.first * file.context.sectors, run.second * file.context.sectors) << tab;
-            // os << "max:" << outvar(Runlist::maxLcn * file.context.sectors) << tab;
-        }
-    }
-    else os << "resident" << tab;
-
-    if (file.dir && !file.entries.empty()) {
-        os << endl;
-        for (string entry: file.entries) os << tab << entry;
-    }
-
-    return os << endl;
 }
 
 File::File(LBA lba, const Record* record, Context& context):
@@ -121,15 +84,55 @@ File::File(LBA lba, const Record* record, Context& context):
             cerr << "No runlist in $MFT file" << endl;
             confirm();
         }
-        context.bias = runlist[0].first * context.sectors - lba;
-        cerr << "New context LBA bias based on last $MFT record: " << outvar(context.bias) << endl;
+        context.bias = lba - runlist[0].first * context.sectors;
+        cerr << "New context LBA bias based on last $MFT record: "
+            << outvar(context.bias) << endl;
     }
     hit(context.include, true);
     hit(context.exclude, false);
 }
 
+ostream& operator<<(ostream& os, const File& file) {
+    os << "\033[2K\r";     // just print file basic info and return to line begin
+    os << hex << uppercase << 'x' << file.lba << tab
+        << file.getType() << '/' << dec << file.index
+        << tab << file.path << file.name;
+    if (!file.done) {
+        os << "...\r";     // just print file basic info and return to line begin
+        return os.flush();
+    }
+    if (!file.context.all) {
+        if (!file.valid || file.exists) return os;
+        if (file.empty()) return os;
+    }
+    os << tab << file.time << tab;
+    if (!file.content) {
+        if (file.size) {
+            os << "size:" << (file.size > 1024? file.size/1024: file.size);
+            if (file.size > 1024) os << 'k';
+            os << tab;
+            if (!file.runlist.empty())
+                // LCN * sector size * sectors per cluster
+                for (auto run: file.runlist)
+                    // os << outpaix(run.first, run.second) << tab;
+                    os << outpaix(run.first * file.context.sectors, run.second * file.context.sectors) << tab;
+            // os << "max:" << outvar(Runlist::maxLcn * file.context.sectors) << tab;
+        }
+    }
+    else os << "resident" << tab;
+
+    if (file.dir && !file.entries.empty()) {
+        os << endl;
+        for (string entry: file.entries) os << tab << entry;
+    }
+
+    return os << endl;
+}
+
 void File::recover() {
     cout << *this;
+    if (dir || !used || !valid || empty()) return;
+    context.dec();
     if (context.recover && size > context.size) {
         sem_wait(context.sem);
         pid = fork();
@@ -146,25 +149,27 @@ void File::recover() {
         }
     }
 
-    ifstream idev(context.dev, ios::in | ios::binary);
-    if (idev.is_open()) idev >> *this;
-    else error = true;
+    if (context.recover) {
+        ifstream idev(context.dev, ios::in | ios::binary);
+        if (idev.is_open()) idev >> *this;
+        else error = true;
+    }
 
+    done = true;
     cout << *this;
+
     if (!pid) {
         sem_post(context.sem);
         exit(EXIT_SUCCESS);
     }
 }
 
-ifstream& operator>>(ifstream& ifs, File& file) {
+ifstream& operator>>(ifstream& ifs, File& file)
+{
     string full;
     utimbuf times;
-    file.done = true;
-    if (!file.context.recover) return ifs;
-    if (file.dir || !file.used || !file.valid) return ifs;
     vector<char> buffer(file.context.sector * file.context.sectors);
-    streamsize save, bytes = file.size;
+    streamsize chunk, bytes = file.size;
     uint64_t magic, mask = 0;
     magic = file.context.magic;
     while (magic) {
@@ -173,18 +178,21 @@ ifstream& operator>>(ifstream& ifs, File& file) {
     }
     if (!file.runlist.empty())
         for (auto run: file.runlist) {
-            LBA first = run.first * file.context.sectors;
-            if (first < file.context.bias) {
-                cerr << "Runlist LBA negative. Try scanning disk device not partition. Aborting" << endl;
+            int64_t first = run.first * file.context.sectors;
+            first += file.context.bias;
+            if (first < 0) {
+                cerr << "Runlist LBA negative: " << outpaix(first, file.context.bias)
+                    << ". Try scanning disk device not partition or partition not a file" << endl;
                 file.error = true;
                 confirm;
                 return ifs;
             }
-            else first -= file.context.bias;
-            ifs.seekg(first * file.context.sector);
+            if (!ifs.seekg(first * file.context.sector))
+                    if (file.context.verbose) cerr << "Error seeking to lba: " << outpaix(first, ifs.tellg()) << ", error: " << strerror(errno) << endl;
             for (auto lcn = run.first; lcn < run.second; lcn++) {
-                if (!ifs.read(buffer.data(), buffer.size())) {
-                    if (file.context.verbose) cerr << "Error reading: " << outvar(lcn) << ", error: " << strerror(errno) << endl;
+                auto chunk = bytes/buffer.size()? buffer.size(): bytes % buffer.size();
+                if (!ifs.read(buffer.data(), chunk)) {
+                    if (file.context.verbose) cerr << "Error reading: " << outpaix(lcn, ifs.tellg()) << ", error: " << strerror(errno) << endl;
                     file.error = true;
                     goto out;
                 }
@@ -200,9 +208,8 @@ ifstream& operator>>(ifstream& ifs, File& file) {
                         return ifs;
                     }
                 }
-                auto save = bytes/buffer.size()? buffer.size(): bytes % buffer.size();
-                file.ofs.write(buffer.data(), save);
-                bytes -= save;
+                file.ofs.write(buffer.data(), chunk);
+                bytes -= chunk;
                 if (bytes > file.size)
                     cerr << "Bytes left math error: " << outpair(bytes, file.size) << endl;
             }
@@ -224,10 +231,13 @@ out:
     else return ifs;
 
     full = file.context.dir + file.path + file.name;
-    times = {(time_t)file.access, (time_t)file.time};
-    if (utime(full.c_str(), &times)) {
-        cerr << "Failed to update file time modification: " << full << ", error: " << strerror(errno) << endl;
-        confirm();
+    if (file.error) unlink(full.c_str());
+    else {
+        times = {(time_t)file.access, (time_t)file.time};
+        if (utime(full.c_str(), &times)) {
+            cerr << "Failed to update file time modification: " << full << ", error: " << strerror(errno) << endl;
+            confirm();
+        }
     }
     return ifs;
 }

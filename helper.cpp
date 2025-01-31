@@ -24,7 +24,9 @@ bool ldump(const void* data, uint length, uint start) {
             txt.push_back('|');
         }
         if (!(offset % align)) {
-            cout << '\t' << txt << endl;
+            cout << '\t' << txt;
+            cerr << "TEST:" << outpaix(offset, length);
+            if (offset < length) cout << endl;
             txt.clear();
         }
     }
@@ -34,9 +36,9 @@ bool ldump(const void* data, uint length, uint start) {
         if (!(offset % 8) && (offset % align))
             cout << '|';
         if (!(offset % align))
-            cout << '\t' << txt << endl;
+            cout << '\t' << txt;
     }
-    else cout << tab << txt << endl;
+    else cout << tab << txt;
     return true;
 }
 

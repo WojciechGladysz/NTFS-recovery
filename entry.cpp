@@ -58,22 +58,14 @@ Index::operator bool() const {
 
 ostream& operator<<(ostream& os, const Index* index)
 {
-    if (Context::debug) os << endl;
     os << "indx/" << index->vnc << tab;
     if (!pdump(index, index->header) && Context::verbose) os << endl;
-    if (Context::verbose)
-        os << "fixup: " << outvar(index->fixup) << tab
-            << "entries: " << outvar(index->entries) << tab
-            << "log sequence: " << outvar(index->logSeq) << tab
-            << "vnc: " << outvar(index->vnc) << endl;
-    const Node* node = reinterpret_cast<const Node*>((char*)index->header + index->header->offset);
-    const Node* last = reinterpret_cast<const Node*>((char*)index + index->header->size);
-    while (node < last ) {
-        os << node;
-        node = reinterpret_cast<const Node*>((char*)node + node->size);
-    }
-    os << endl;
-    return os;
+    os << "fixup: " << outvar(index->fixup) << tab
+        << "entries: " << outvar(index->entries) << tab
+        << "log sequence: " << outvar(index->logSeq) << tab
+        << "vnc: " << outvar(index->vnc) << endl
+        << index->header;
+    return os << endl;
 }
 
 ostream& operator<<(ostream& os, const Record* record) {
@@ -97,7 +89,10 @@ ostream& operator<<(ostream& os, const Record* record) {
         << "sequence nr: " << outvar(record->seq) << endl
         << "links: " << outvar(record->ref) << endl
         << "attributes: " << outvar(record->attr) << endl
-        << "flags: " << outvar(record->flags) << endl
+        << "flags: " << outvar(record->flags);
+    if (record->flags & USE) os << "/USED";
+    if (record->flags & DIR) os << "/DIR";
+    os << endl
         << "size: " << outvar(record->size) << endl
         << "allocated: " << outvar(record->alloc) << endl
         << "base: " << outvar(record->base) << endl
@@ -140,7 +135,7 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
         return ifs;
     }
 
-    const Index* index = reinterpret_cast<Index*>(entry.data());
+    const Index* index = reinterpret_cast<const Index*>(entry.data());
     if (entry.context.index && *index) {
         entry.resize(entry.context.sector * entry.context.sectors);
         size_t more = entry.size() - entry.context.sector;
@@ -149,7 +144,7 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
             exit(EXIT_FAILURE);
         }
         cout << endl << hex << uppercase << 'x' << lba << tab;
-        Index* index = reinterpret_cast<Index*>(entry.data());
+        const Index* index = reinterpret_cast<const Index*>(entry.data());
         dump(lba, entry);
         cout << index;
         entry.context.dec();
@@ -188,10 +183,10 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
 
     auto size = record->size;
     entry.resize(size);
-    dump(lba, entry);
+    if (dump(lba, entry)) cout << endl;
     if (entry.context.verbose) {
         record = reinterpret_cast<Record*>(entry.data());
-        cout << endl << hex << uppercase << 'x' << lba << tab <<record;
+        cout << endl << hex << uppercase << 'x' << lba << tab << record;
     }
     return ifs;
 }
