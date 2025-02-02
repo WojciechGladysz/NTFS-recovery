@@ -3,6 +3,8 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <cstring>
+
 #include "helper.hpp"
 #include "context.hpp"
 
@@ -13,7 +15,7 @@ bool Context::confirm = false;
 ostream& operator<<(ostream& oss, const Context& context) {
     oss << "Device:" << context.dev << ", "
         << "lba:" << outvar(context.first);
-    if (context.last) oss << '>' << outvar(context.last);
+    if (context.last) oss << " >> " << outvar(context.last);
     oss << ", ";
     if (context.count > 0) oss << "count:" << context.count << ", ";
     if (context.show > 0) oss << "show:" << context.show << ", ";
@@ -43,6 +45,7 @@ ostream& operator<<(ostream& oss, const Context& context) {
         if (context.format > Context::Format::Month) oss << "dd/";
         oss << ", ";
     }
+    if (context.recycle) oss << "include recycle bin, ";
     oss << "pid:" << getpid() << endl;
     if (context.recover) {
         oss << "RECOVER to target dir: " << context.dir;
@@ -54,10 +57,22 @@ ostream& operator<<(ostream& oss, const Context& context) {
     return oss << endl;
 }
 
+void Context::signature(const char* key) {
+    magic = strtoll(key, nullptr, 0);
+    if (!magic) strncpy((char*)&magic, key, sizeof(magic));
+    uint64_t temp = magic;
+    while (temp) {
+        mask =  (mask << 8) + 0xFF;
+        temp = temp/0x100;
+    }
+    magic &= mask;
+    // cerr << "Magic: " << hex << magic << '/'; cerr.write(&cmagic, sizeof(magic)) << endl;
+}
+
 Context::Context(): dir("."), count(-1L), show(-1L), sector(512), sectors(8) {
     bias = first = last = 0;
-    magic = 0;
-    verbose = debug = confirm = recover = all = force = index = false;
+    magic = mask = 0;
+    verbose = debug = confirm = recover = all = force = index = recycle = extra = false;
     format = Context::Format::None;
     size = 1 << 24;     // 16MB
     childs = 4;

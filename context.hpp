@@ -17,8 +17,9 @@ struct Context {
     int64_t         bias;
     int64_t			count, show;
     set<string>		include, exclude;
-    uint64_t		magic;
-    bool			recover, all, force, index, extra;
+    union           { uint64_t magic; char cmagic; };
+    uint64_t		mask;
+    bool			recover, all, force, index, recycle, extra;
     uint            sector, sectors;
     static bool     verbose, debug, confirm;
     ofstream        dirs, exts;
@@ -35,6 +36,7 @@ struct Context {
         return false;
     } 
     ~Context() { sem_destroy(sem); };
+    void signature(const char*);
     void dec() { if (!--show) count = 0; }
 };
 

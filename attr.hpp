@@ -24,8 +24,8 @@ struct __attribute__ ((packed)) Info {
 };
 
 struct __attribute__ ((packed)) Name {
-    uint16_t    dir:16;
-    uint64_t    seq:48;
+    uint64_t    dir:32;
+    uint64_t    unknown:32;
 
     Time        creatTime;
     Time        modTime;
@@ -41,10 +41,6 @@ struct __attribute__ ((packed)) Name {
     uint8_t     length;
     uint8_t     space;
     char16_t    data;
-    uint16_t    getDir(string& name) const {
-        name = getName();
-        return dir;
-    }
     string      getName() const;
     bool        parse(File* file) const;
     friend ostream& operator<<(ostream&, const Name*);
@@ -60,20 +56,26 @@ struct __attribute__ ((packed)) Node {
 #define LAST    (1 << 1)
     uint8_t     flags;
     uint8_t     padding[3];
+
     uint64_t    data[8];
+
     uint16_t    length;
     char16_t    name[];
+    bool        parse(File*) const;
     friend ostream& operator<<(ostream&, const Node*);
 };
 
 struct __attribute__ ((packed)) Header {
     uint32_t    offset;
     uint32_t    size;
+
     uint32_t    allocated;
 #define LARGE   (1 << 0)
-    uint8_t    flags;
-    uint8_t    padding[3];
-    Node   node[];
+    uint8_t     flags;
+    uint8_t     padding[3];
+
+    Node        node[];
+    bool        parse(File*) const;
     friend ostream& operator<<(ostream&, const Header*);
 };
 
@@ -145,6 +147,7 @@ struct __attribute__ ((packed)) Attr {
     const Attr* getNext() const;
     uint16_t getDir(string& name) const;
     const Attr* parse(File* file) const;
+    const Name* getName() const;
     friend ostream& operator<<(ostream&, const Attr*);
 };
 

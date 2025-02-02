@@ -92,20 +92,6 @@ const Attr* Attr::getNext() const {
     return nullptr;
 }
 
-uint16_t Attr::getDir(string& name) const {
-    uint16_t dir = 0;
-    const char* data = nullptr;
-    const Attr* next = this;
-    while (next) {
-        if (next->type == AttrId::FileName) {
-            data = reinterpret_cast<const char*>(next) + next->res.offset;
-            dir = reinterpret_cast<const Name*>(data)->getDir(name);
-        }
-        next = next->getNext();
-    }
-    return dir;
-}
-
 ostream& operator<<(ostream& os, const Info* attr) {
     os << "creation: " << outtime(attr->creatTime) << endl
         << "change: " << outtime(attr->changeTime) << endl
@@ -140,39 +126,40 @@ bool Nonres::parse(File* file) const {
     return true;
 }
 
+const Name* Attr::getName() const {
+    const Attr* attr = this;
+    const Name* name = nullptr;
+    while (attr) {
+        if (attr->type == AttrId::FileName) name = reinterpret_cast<const Name*>((char*)attr + attr->res.offset);
+        attr = attr->getNext();
+    }
+    return name;
+}
+
 std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> converter;
 
 string Name::getName() const {
     string name;
-    name = converter.to_bytes(&data, &data + length);
-    for (char& c:name) if (!isprint(c)) c = '_';
+    try {
+        name = converter.to_bytes(&data, &data + length);
+        for (char& c:name) if (!isprint(c)) c = '_';
+    } catch (...) { name = "N/A"; }
     return name;
 }
 
 bool Name::parse(File* file) const {
-    string path = "/";
-    uint16_t dir = this->dir;
-    try {
-        string name;
-        uint16_t last = 0;
-        do {
-            last = dir;
-            tie(name, dir) = file->dirs.at(dir);
-            if (dir == last) break;
-            path = "/" + name + path;
-        } while (true);
-    }
-    catch (...) {
-        path = "/@" + to_string(dir) + path;
-    }
+    if (!file) return false;
     file->name = getName();
+    file->parent = dir; 
+
     if (file->name.npos != file->name.find('.')) {
         istringstream ext(file->name);
         while (getline(ext, file->ext, '.'));
     }
+
     if (!file->ext.empty()) {
         lower(file->ext);
-        if (file->ext.npos == file->ext.find(' ')
+        if (file->ext.npos == file->ext.find(' ')       // no spaces in file extension
                 && exts.end() == exts.find(file->ext)) {
             exts.insert(file->ext);
             if (file->context.extra) {
@@ -184,9 +171,9 @@ bool Name::parse(File* file) const {
             }
         }
     }
-    file->path = path;
-    file->valid = true;
-    return true;
+
+    file->valid = !file->name.empty();
+    return file->valid;
 }
 
 ostream& operator<<(ostream& os, const Attr* attr) {
@@ -301,14 +288,26 @@ bool Runlist::parse(File* file) const {
     return true;
 }
 
+bool Node::parse(File *file) const {
+        try {
+            string dir;
+            const char16_t* stop = reinterpret_cast<char16_t*>((char*)data + end);
+            dir = converter.to_bytes(name, stop);
+            file->entries.emplace_back(index, dir);
+        }
+        catch (...) {
+            return false;
+        }
+        return true;
+}
+
 ostream& operator<<(ostream& os, const Node* attr) {
-    ldump(attr, attr->size);
-    if (Context::verbose) {
-        os << "index: " << outvar(attr->index) << tab;
-        if (Context::debug)
-            os << "size:" << outvar(attr->size) << tab
-                << "name end: " << outvar(attr->end) << tab
-                << "flags: " << outchar(attr->flags);
+    if (ldump(attr, attr->size)) os << endl;
+    if (Context::debug) {
+        os << "index: " << outvar(attr->index) << tab
+            << "size:" << outvar(attr->size) << tab
+            << "name end: " << outvar(attr->end) << tab
+            << "flags: " << outchar(attr->flags);
         if (attr->flags & SUB) os << "/SUB";
         if (attr->flags & LAST) os << "/LAST";
         os << tab;
@@ -318,20 +317,20 @@ ostream& operator<<(ostream& os, const Node* attr) {
             const char16_t* start = reinterpret_cast<const char16_t*>(attr->name);
             const char16_t* end = reinterpret_cast<const char16_t*>((char*)attr->data + attr->end);
             os << dec << attr->index << '/' << converter.to_bytes(start, end);
+            if (attr->flags & SUB)
+                os << '-' << *reinterpret_cast<VCN*>((char*)attr + attr->size - 8);
+            if (Context::debug) os << endl;
+            else os << tab;
         }
-        catch (...) { os << "name exception"; }
+        catch (...) { os << "N/A" << tab; }
     }
 
-    if (attr->flags & SUB)
-        os << '-' << *reinterpret_cast<VCN*>((char*)attr + attr->size - 8);
-    if (Context::verbose) os << endl;
-    else os << tab;
     return os;
 }
 
 ostream& operator<<(ostream& os, const Header* attr) {
     os << "Header: ";
-    pdump(attr, attr->node);
+    if (pdump(attr, attr->node)) os << endl;
     os << "offset: " << outvar(attr->offset) << tab
         << "size: " << outvar(attr->size) << tab
         << "allocated: " << outvar(attr->allocated) << tab
@@ -340,8 +339,9 @@ ostream& operator<<(ostream& os, const Header* attr) {
     os << endl;
     const Node* last = reinterpret_cast<const Node*>((char*)attr + attr->size);
     const Node* node = reinterpret_cast<const Node*>((char*)attr + attr->offset);
-    while (node < last && !(node->flags & LAST)) {
+    while (node < last) {
         os << node;
+        if (node->flags & LAST) break;
         node = reinterpret_cast<const Node*>((char*)node + node->size);
     }
     return os;
@@ -349,7 +349,7 @@ ostream& operator<<(ostream& os, const Header* attr) {
 
 ostream& operator<<(ostream& os, const Root* attr) {
     os << "Root: " << tab;
-    pdump(attr, attr->header);
+    if (pdump(attr, attr->header)) os << endl;
     os << "type: " << outvar((uint64_t)attr->type) << tab
         << "collation: " << outvar(attr->collation) << tab
         << "size: " << outvar(attr->size) << tab
@@ -359,21 +359,16 @@ ostream& operator<<(ostream& os, const Root* attr) {
 }
 
 bool Root::parse(File* file) const {
+    return header->parse(file);
+}
+
+bool Header::parse(File* file) const {
     string name;
-    const Node* node = reinterpret_cast<const Node*>((char*)header + header->offset);
-    const Node* last = reinterpret_cast<const Node*>((char*)header + header->size);
+    const Node* node = reinterpret_cast<const Node*>((char*)this + offset);
+    const Node* last = reinterpret_cast<const Node*>((char*)this + size);
     while (node < last && !(node->flags & LAST)) {
-        try {
-            const char16_t* start = reinterpret_cast<const char16_t*>(node->name);
-            const char16_t* end = reinterpret_cast<char16_t*>((char*)node->data + node->end);
-            name = converter.to_bytes(start, end);
-            file->entries.push_back(name);
-            if (node->flags & LAST) break;
-            node = reinterpret_cast<const Node*>((const char*)node + node->size);
-        }
-        catch (...) {
-            node = reinterpret_cast<const Node*>((const char*)node + node->size);
-        }
+        node->parse(file);
+        node = reinterpret_cast<const Node*>((const char*)node + node->size);
     }
     return true;
 }

@@ -35,6 +35,7 @@ int main(int n, char** argv) {
             if (*arg == 'X') { context.extra = true; continue; }
             if (*arg == 'f') { context.force = true; continue; }
             if (*arg == 'I') { context.index = true; continue; }
+            if (*arg == 'r') { context.recycle = true; continue; }
             if (*arg == 'v') {
                 if (context.verbose) context.debug = true;
                 context.verbose = true;
@@ -47,7 +48,7 @@ int main(int n, char** argv) {
             if (*arg == 'l') { context.first = strtol(++arg, nullptr, 0); break; }
             if (*arg == 'L') { context.last = strtol(++arg, nullptr, 0); break; }
             if (*arg == 'n') { context.count = strtol(++arg, nullptr, 0); break; }
-            if (*arg == 'm') { context.magic = strtol(++arg, nullptr, 0); break; }
+            if (*arg == 'm') { context.signature(++arg); break; }
             if (*arg == 's') { context.show = strtol(++arg, nullptr, 0); break; }
             if (*arg == 'S') { context.size = strtol(++arg, nullptr, 0) * (1 << 20 ); break; }
             if (*arg == 'i') { context.parse(++arg, context.include); break; }
@@ -60,7 +61,7 @@ int main(int n, char** argv) {
                 context.dir = arg;
                 break;
             }
-            if (*arg == 't') {
+            if (*arg == 'p') {
                 sem_destroy(context.sem);
                 context.childs = strtol(++arg, nullptr, 0);
                 sem_init(context.sem, 1, context.childs);
@@ -85,6 +86,7 @@ int main(int n, char** argv) {
         mime types are OK, example: image, video
 -x      exclude files with extensions separated with comma (no spaces)
         mime types are OK, example: image, video
+-r      include files from recycle bin
 -v      be verbose, if repeated be more verbose with debug info
 -I      show index allocations
 -Y      file path under target directory will be altered to /yyyy/
@@ -94,7 +96,7 @@ int main(int n, char** argv) {
 -X      create extra files ntfs.dirs, ntfs.exts in current directory with scanned
         directory entries and file extensions
 -a      show all entries including invalid or skipped
--t      max number of child processes for big files recovery, see option -s
+-p      max number of child processes for big files recovery, see option -s
 -S      size of file in MB to start a new thread for the file recovery, default 16MB
 -c      confirm possible errors
 
@@ -133,7 +135,7 @@ Parsed arguments:
         if (context.stop(lba)) break;
         Entry entry(context);
         idev >> entry;
-        if (!entry) continue;
+        if (!entry.record()) continue;
         File file(lba, entry.record(), context);
         file.recover();
         waitpid(-1, NULL, WNOHANG);
@@ -142,7 +144,7 @@ Parsed arguments:
     cerr << "\033[2K\r";
     cerr << "Wait for child processes... ";
     int id;
-    while (id = wait(NULL), id > 0) cerr << id << ',';
+    while (id = wait(NULL), id > -1) cerr << id << ',';
     cerr << "done" << endl;
     return 0;
 }

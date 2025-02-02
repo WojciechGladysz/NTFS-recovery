@@ -12,7 +12,7 @@
 #include "entry.hpp"
 #include "file.hpp"
 
-unordered_map<uint32_t, pair<string, uint32_t>> File::dirs;
+unordered_map<uint64_t, pair<string, uint64_t>> File::dirs;
 
 ostream& operator<<(ostream& os, const Time_t time) {
     os << std::put_time(std::localtime(reinterpret_cast<const time_t*>(&time)), "%Y.%m.%d %H:%M:%S");
@@ -42,14 +42,80 @@ bool File::hit(const set<string>& entries, bool must) {  // return means continu
 bool File::empty() const { return runlist.empty() && !content; }
 
 string File::getType() const {
-    if (!used) return "not used";
-    if (!valid) return "not valid";
-    if (dir) return "DIR";
-    if (error) return "ERROR";
-    if (empty()) return "empty";
-    if (context.magic && context.magic != magic) return "no magic";
-    if (!context.force && exists) return "exist";
-    return "file";
+    string type;
+    if (error) type = '!';
+    if (!used) type += "not used";
+    else if (!valid) type += "not valid";
+    else if (dir) type += "DIR";
+    else if (error) type += "ERROR";
+    else if (empty()) type += "empty";
+    else if (!context.force && exists) type += "exist";
+    else if (done && context.mask && context.magic != magic) type += "no magic";
+    else type += "file";
+    return type;
+}
+
+void File::map(const Record* record, uint64_t offset) {
+    string name;
+    uint64_t parent;
+    if (dirs.find(record->rec - offset) == dirs.end()) {
+        parent = record->getParent(name);
+        dirs[record->rec - offset] = make_pair(name, parent);
+        if (context.extra) {
+            if (!context.dirs.is_open())
+                context.dirs.open("ntfs.dirs", ios::binary);
+            if (context.dirs.is_open())
+                context.dirs << dec << record->rec - offset << tab << name << tab << parent << endl;
+        }
+    }
+}
+
+bool File::setPath(const Record* record)
+{
+    string path = "/";
+    bool trash = false;
+    uint64_t dir = parent;
+    uint64_t last = 0;
+    try {
+        string name;
+        do {
+            last = dir;
+            tie(name, dir) = dirs.at(dir);
+            if (dir == last) break;
+            if (name == "$RECYCLE.BIN") trash = true;
+            path = "/" + name + path;
+        } while (true);
+    }
+    catch (...) {
+        path = "/@" + to_string(last) + path;
+        ifstream idev(context.dev, ios::in | ios::binary);
+        if (idev.is_open()) {
+            int64_t offset = int64_t((last - index) * entry) / context.sector;
+            int64_t dir = lba + offset;
+            if (idev.seekg(dir * context.sector)) {
+                vector<char> buffer(entry);
+                idev.read(buffer.data(), buffer.size());
+                const Record* parent = reinterpret_cast<const Record*>(buffer.data());
+                if (*parent) {
+                    if (parent->dir()) map(parent, 0);
+                    else {
+                        offset = int64_t((last + (1<<16) - index) * entry) / context.sector;
+                        dir = lba + offset;
+                        if (idev.seekg(dir * context.sector)) {
+                            idev.read(buffer.data(), buffer.size());
+                            Record* parent = reinterpret_cast<Record*>(buffer.data());
+                            if (*parent)
+                                if (parent->dir()) map(parent, 1<< 16);
+                        }
+                    }
+                    return setPath(record);
+                }
+            }
+        }
+    }
+    valid = context.recycle || !trash;
+    this->path = path;
+    return true;
 }
 
 File::File(LBA lba, const Record* record, Context& context):
@@ -57,28 +123,17 @@ File::File(LBA lba, const Record* record, Context& context):
         valid(false), lba(lba), dir(false), size(0), alloc(0),
         content(nullptr), done(false), exists(false)
 {
-    if (!record) return;
-    uint32_t* endTag = (uint32_t*)(record->key + record->size) - 2;
-    if (!record) return;
-    used = record->used();
-    if (!used) return;
-    if (*endTag != 0xFFFFFFFF) return;
+    if (!record || !*record) return;
+    entry = record->alloc;
     index = record->rec;
-    const Attr* attrs = (const Attr*)(record->key + record->attr);
-    if (record->dir()) {
-        string name;
-        dir = true;
-        uint16_t parent = attrs->getDir(name);
-        if (dirs.end() == dirs.find(record->rec)) {
-            dirs[record->rec] = make_pair(name, parent);
-            if (context.extra) {
-                if (!context.dirs.is_open()) context.dirs.open("ntfs.dirs", ios::binary);
-                if (context.dirs.is_open()) context.dirs << record->rec << tab << name << tab << parent << endl;
-            }
-        }
-    }
-    const Attr* next = attrs;
+    used = record->used();
+    dir = record->dir();
+    if (!used) return;
+    const Attr* next = (const Attr*)(record->key + record->attr);
     while (next) next = next->parse(this); 
+    hit(context.include, true);
+    hit(context.exclude, false);
+    if (valid) setPath(record);
     if (!index) {
         if (context.verbose && runlist.empty()) {
             cerr << "No runlist in $MFT file" << endl;
@@ -88,24 +143,23 @@ File::File(LBA lba, const Record* record, Context& context):
         cerr << "New context LBA bias based on last $MFT record: "
             << outvar(context.bias) << endl;
     }
-    hit(context.include, true);
-    hit(context.exclude, false);
 }
 
 ostream& operator<<(ostream& os, const File& file) {
-    os << "\033[2K\r";     // just print file basic info and return to line begin
-    os << hex << uppercase << 'x' << file.lba << tab
-        << file.getType() << '/' << dec << file.index
-        << tab << file.path << file.name;
+    cerr << "\033[2K";     // just print file basic info and return to line begin
+    os << hex << uppercase << 'x' << file.lba << tab << file.getType();
     if (!file.done) {
+        cerr.flush();
         os << "...\r";     // just print file basic info and return to line begin
-        return os.flush();
+        os.flush();
+        return os;
     }
+    file.context.dec();
     if (!file.context.all) {
-        if (!file.valid || file.exists) return os;
-        if (file.empty()) return os;
+        if (!file.used || !file.valid || file.exists) return os << '\r';
+        if (file.empty() || file.dir) return os << '\r';
     }
-    os << tab << file.time << tab;
+    os << '/' << dec << file.index << tab << file.path << file.name << tab << file.time << tab;
     if (!file.content) {
         if (file.size) {
             os << "size:" << (file.size > 1024? file.size/1024: file.size);
@@ -121,19 +175,18 @@ ostream& operator<<(ostream& os, const File& file) {
     }
     else os << "resident" << tab;
 
-    if (file.dir && !file.entries.empty()) {
-        os << endl;
-        for (string entry: file.entries) os << tab << entry;
+    if (!file.context.recover && file.dir && !file.entries.empty()) {
+        os << ": ";
+        for (auto& entry: file.entries) os << entry.first << '/' << entry.second << tab;
     }
 
     return os << endl;
 }
 
-void File::recover() {
-    cout << *this;
-    if (dir || !used || !valid || empty()) return;
-    context.dec();
-    if (context.recover && size > context.size) {
+void File::recover()
+{
+    cerr << *this;     // just print file basic info and return to line begin
+    if (used && valid && context.recover && size > context.size && !dir) {
         sem_wait(context.sem);
         pid = fork();
         if (pid < 0) {
@@ -149,13 +202,16 @@ void File::recover() {
         }
     }
 
-    if (context.recover) {
-        ifstream idev(context.dev, ios::in | ios::binary);
-        if (idev.is_open()) idev >> *this;
-        else error = true;
-    }
+    if (used && valid && !empty())
+        if (context.recover ^ dir) {
+            ifstream idev(context.dev, ios::in | ios::binary);
+            if (idev.is_open())
+                idev >> *this;
+            else error = true;
+        }
 
-    done = true;
+    if (!context.recover || context.all) done = true;
+
     cout << *this;
 
     if (!pid) {
@@ -170,13 +226,6 @@ ifstream& operator>>(ifstream& ifs, File& file)
     utimbuf times;
     vector<char> buffer(file.context.sector * file.context.sectors);
     streamsize chunk, bytes = file.size;
-    uint64_t written = 0;
-    uint64_t magic, mask = 0;
-    magic = file.context.magic;
-    while (magic) {
-        mask =  (mask << 8) + 0xFF;
-        magic = magic/0x100;
-    }
     if (!file.runlist.empty())
         for (auto run: file.runlist) {
             int64_t first = run.first * file.context.sectors;
@@ -193,35 +242,47 @@ ifstream& operator>>(ifstream& ifs, File& file)
             for (auto lcn = run.first; lcn < run.second; lcn++) {
                 auto chunk = bytes/buffer.size()? buffer.size(): bytes % buffer.size();
                 if (!ifs.read(buffer.data(), chunk)) {
-                    if (file.context.verbose) cerr << "Error reading: " << outpaix(lcn, ifs.tellg()) << ", error: " << strerror(errno) << endl;
+                    if (file.context.verbose) cerr << "Error reading: "
+                        << outpaix(lcn, ifs.tellg()) << ", error: " << strerror(errno) << endl;
                     file.error = true;
                     goto out;
                 }
-                file.magic = *reinterpret_cast<uint64_t*>(buffer.data());
-                if (!file.ofs.is_open()) {
-                    if ((file.magic & mask) != (file.context.magic & mask)) {
-                        if (Context::verbose) cerr << "No magic: " << outpaix((file.magic & mask), (file.context.magic & mask)) << endl;
-                        file.valid = false;
-                        goto out;
+                if (!file.dir) {
+                    if (!file.ofs.is_open()) {
+                        file.magic = *reinterpret_cast<uint64_t*>(buffer.data()) & file.context.mask;
+                        if (file.magic != file.context.magic) {
+                            if (Context::verbose) {
+                                cerr << "No magic/" << hex << file.context.mask << ':'
+                                    << outpaix(file.magic, file.context.magic) << tab;
+                                cerr.write(&file.cmagic, sizeof(file.magic)) << '/';
+                                cerr.write(&file.context.cmagic, sizeof(file.context.magic)) << endl;
+                            }
+                            file.valid = false;
+                            goto out;
+                        }
+                        else if (!file.open()) {
+                            if (!file.done) file.error = false;
+                            return ifs;
+                        }
                     }
-                    else if (!file.open()) {
-                        if (!file.done) file.error = false;
-                        return ifs;
-                    }
+                    file.ofs.write(buffer.data(), chunk);
                 }
-                file.ofs.write(buffer.data(), chunk);
-                written += chunk;
+                else {
+                    const Index* index = reinterpret_cast<const Index*>(buffer.data());
+                    if (*index) index->header->parse(&file);
+                    else file.error = true;
+                }
                 bytes -= chunk;
             }
         }
     else if(file.content) {
         file.magic = *reinterpret_cast<const uint16_t*>(file.content);
-        if (file.context.magic && (file.context.magic & mask) != (file.magic & mask) )
+        if (file.context.magic && file.context.magic != file.magic & file.context.mask)
             file.valid = false;
         else if (!file.open()) return ifs;
         else file.ofs.write(file.content, file.size);
     }
-    else {
+    else {  // empty file
         file.done = true;
         return ifs;
     }
@@ -258,6 +319,7 @@ void File::mangle() {
 
 bool File::open()
 {
+    bool magic = false;
     string target(context.dir);
     mangle();
     target.append(path);
@@ -266,8 +328,19 @@ bool File::open()
         struct stat info;
         stat(full.c_str(), &info);
         if (context.verbose) cerr << "File exists: " << full;
-        if ((time_t) time >= info.st_mtime && size >= info.st_size && !context.force) {   // check file size against MFT record
-            if (context.verbose) cerr << ", and its date is OK. Skipping" << endl;
+        if (context.magic) {
+            union {
+                uint64_t    magic;
+                char        cmagic;
+            } key;
+            ifstream file(full, std::ios::in | std::ios::binary);
+            if (!file.is_open()) cerr << "Can not open existing file for read magic: " << full;
+            file.read(&key.cmagic, sizeof(key)); 
+            key.magic &= context.mask;
+            if (key.magic == context.magic) magic = true;
+        }
+        if (magic && (time_t) time >= info.st_mtime && size >= info.st_size && !context.force) {   // check file size against MFT record
+            if (context.verbose) cerr << ", and its data seems OK. Skipping" << endl;
             done = true;
             exists = true;
             return false;

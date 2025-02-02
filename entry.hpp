@@ -2,6 +2,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "attr.hpp"
+
 using namespace std;
 
 class Context;
@@ -36,6 +38,19 @@ struct __attribute__ ((packed)) Boot {
     uint32_t getSize() const;
 };
 
+struct __attribute__ ((packed)) Index {
+    char        key[4];
+    uint16_t    fixup;
+    uint16_t    entries;
+
+    uint64_t    logSeq;
+    uint64_t    vnc;
+
+    Header      header[];
+    operator bool() const;
+    friend ostream& operator<<(ostream&, const Index*);
+};
+
 struct __attribute__ ((packed)) Record {
     char        key[4];
     uint16_t    updateSeq;
@@ -61,13 +76,15 @@ struct __attribute__ ((packed)) Record {
 
     bool used() const { return flags & USE; }
     bool dir() const { return flags & DIR; }
+    const Name* getName() const;
+    uint64_t getParent(string& name) const;
+    operator bool() const;
 };
 
 class Entry:vector<char> {
     Context& context;
     public:
     Entry(Context&);
-    operator bool() const;
     const Record* record() const { return reinterpret_cast<const Record*>(data()); }
     friend ifstream& operator>>(ifstream& ifs, Entry& entry);
 };

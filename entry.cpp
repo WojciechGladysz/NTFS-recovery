@@ -7,21 +7,6 @@
 
 const uint8_t Boot::jmp[] = {0xeb, 0x52, 0x90};
 
-struct Header;
-
-struct __attribute__ ((packed)) Index {
-    char        key[4];
-    uint16_t    fixup;
-    uint16_t    entries;
-
-    uint64_t    logSeq;
-    uint64_t    vnc;
-
-    Header      header[];
-    operator bool() const;
-    friend ostream& operator<<(ostream&, const Index*);
-};
-
 Boot::operator bool() const {
     return !memcmp(jmpCode, jmp, 3)
         && !strncmp(oemId, "NTFS", 4)
@@ -59,13 +44,34 @@ Index::operator bool() const {
 ostream& operator<<(ostream& os, const Index* index)
 {
     os << "indx/" << index->vnc << tab;
-    if (!pdump(index, index->header) && Context::verbose) os << endl;
+    if (pdump(index, index->header)) os << endl;
     os << "fixup: " << outvar(index->fixup) << tab
         << "entries: " << outvar(index->entries) << tab
         << "log sequence: " << outvar(index->logSeq) << tab
         << "vnc: " << outvar(index->vnc) << endl
         << index->header;
     return os << endl;
+}
+
+Record::operator bool() const {
+    // uint32_t* endTag = (uint32_t*)(key + size) - 2;
+    // return !strncmp(key, "FILE", 4) && *endTag == 0xFFFFFFFF;
+    return !strncmp(key, "FILE", 4);
+}
+
+uint64_t Record::getParent(string& name) const {
+    uint16_t dir = 0;
+    const Name* attr = getName();
+    if (attr) {
+        dir = attr->dir;
+        name = attr->getName();
+    }
+    return dir;
+}
+
+const Name* Record::getName() const {
+    const Attr* attr = reinterpret_cast<const Attr*>((char*)this + this->attr);
+    return attr->getName();
 }
 
 ostream& operator<<(ostream& os, const Record* record) {
@@ -110,10 +116,6 @@ ostream& operator<<(ostream& os, const Record* record) {
 
 Entry::Entry(Context& context): context(context) {}
 
-Entry::operator bool() const {
-    return !strncmp(reinterpret_cast<const Record*>(data())->key, "FILE", 4);
-}
-
 ifstream& operator>>(ifstream& ifs, Entry& entry)
 {
     LBA lba = ifs.tellg() / entry.context.sector;
@@ -143,30 +145,31 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
             cerr << "Device read error at: " << hex << lba << endl;
             exit(EXIT_FAILURE);
         }
-        cout << endl << hex << uppercase << 'x' << lba << tab;
+        cerr << endl << hex << uppercase << 'x' << lba << tab;
         const Index* index = reinterpret_cast<const Index*>(entry.data());
-        dump(lba, entry);
-        cout << index;
+        if (dump(lba, entry)) cout << endl << endl;
+        cerr << index;
         entry.context.dec();
         confirm();
         return ifs;
     }
 
-    if (!entry) {
+    const Record* record = reinterpret_cast<Record*>(entry.data());
+    if (!*record) {
         if (entry.context.debug) {
-            cout << endl << hex << uppercase << 'x' << lba << tab;
+            cerr << endl << hex << uppercase << 'x' << lba << tab;
             dump(lba, entry);
+            cerr << endl;
             confirm();
         }
         return ifs;;
     }
 
-    const Record* record = reinterpret_cast<Record*>(entry.data());
     auto alloc = record->alloc;
     if (alloc > (1<<16)) {
-        cout << endl << "Not resizing to " << outvar(alloc) << endl;
+        cerr << endl << "Not resizing to " << outvar(alloc) << endl;
         dump(lba, entry);
-        cout << endl << "Skipping currupted entry:"
+        cerr << endl << "Skipping currupted entry:"
             << hex << uppercase << 'x' << lba << ':' << endl << record;
         confirm();
         return ifs;

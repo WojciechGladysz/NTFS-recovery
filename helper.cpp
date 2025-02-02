@@ -15,30 +15,29 @@ bool ldump(const void* data, uint length, uint start) {
     const char* chars = static_cast<const char*>(data);
     for (uint i = start; i < end; i++) {
         uint8_t c = chars[i];
-        if (!(offset % align)) cout << setw(4) << dec << offset << 'x' << setw(3) << uppercase << hex << offset << ": ";
-        cout << std::hex << std::setw(2) << static_cast<uint16_t>(c) << ' ';
+        if (!(offset % align)) cerr << setw(4) << dec << offset << 'x' << setw(3) << uppercase << hex << offset << ": ";
+        cerr << std::hex << std::setw(2) << static_cast<uint16_t>(c) << ' ';
         txt.push_back(isprint(c)? c: ' ');
         offset++;
         if (!(offset % 8) && (offset % align)) {
-            cout << '|';
+            cerr << '|';
             txt.push_back('|');
         }
         if (!(offset % align)) {
-            cout << '\t' << txt;
-            cerr << "TEST:" << outpaix(offset, length);
-            if (offset < length) cout << endl;
+            cerr << '\t' << txt;
+            if (offset < length) cerr << endl;
             txt.clear();
         }
     }
     if (length >= align) while (offset % align) {
         offset++;
-        cout << "_ _";
+        cerr << "_ _";
         if (!(offset % 8) && (offset % align))
-            cout << '|';
+            cerr << '|';
         if (!(offset % align))
-            cout << '\t' << txt;
+            cerr << '\t' << txt;
     }
-    else cout << tab << txt;
+    else cerr << tab << txt;
     return true;
 }
 
@@ -49,7 +48,7 @@ bool pdump(const void* start, const void* end) {
 
 bool dump(LBA lba, const vector<char>& data) {
     if (!Context::debug) return false;
-    cout << "offset: " << outvar(lba) << endl;
+    cerr << "offset: " << outvar(lba) << endl;
     return ldump(data.data(), (uint)data.size()); 
 }
 

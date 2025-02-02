@@ -17,16 +17,17 @@ struct File
 	pid_t	pid;
     bool	valid, done, used, exists, dir, error;
     LBA lba;
-    uint32_t index;
+    uint64_t index, parent;
     string name, ext, path;
     Time_t time, access;
-    uint64_t size, alloc, magic;
+    uint64_t size, alloc, mask, entry;
+    union { uint64_t magic; char    cmagic; };
     ofstream ofs;
     vector<pair<uint32_t, uint32_t>> runlist;
-    vector<string> entries;
+    vector<pair<uint64_t, string>> entries;
     const char* content;
     Context& context;
-    static unordered_map<uint32_t, pair<string, uint32_t>> dirs;
+    static unordered_map<uint64_t, pair<string, uint64_t>> dirs;
     string getType() const;
     void mangle();
     bool open();
@@ -34,6 +35,8 @@ struct File
     bool parse();
     bool empty() const;
     operator bool() const { return valid; }
+    bool setPath(const Record*);
+    void map(const Record*, uint64_t);
     File(LBA, const Record*, struct Context&);
     void recover();
 };
