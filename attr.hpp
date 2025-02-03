@@ -40,7 +40,7 @@ struct __attribute__ ((packed)) Name {
 
     uint8_t     length;
     uint8_t     space;
-    char16_t    data;
+    char16_t    data[];
     string      getName() const;
     bool        parse(File* file) const;
     friend ostream& operator<<(ostream&, const Name*);

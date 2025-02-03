@@ -141,7 +141,7 @@ std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> converter;
 string Name::getName() const {
     string name;
     try {
-        name = converter.to_bytes(&data, &data + length);
+        name = converter.to_bytes(data, data + length);
         for (char& c:name) if (!isprint(c)) c = '_';
     } catch (...) { name = "N/A"; }
     return name;
@@ -310,7 +310,7 @@ ostream& operator<<(ostream& os, const Node* attr) {
             << "flags: " << outchar(attr->flags);
         if (attr->flags & SUB) os << "/SUB";
         if (attr->flags & LAST) os << "/LAST";
-        os << tab;
+        os << endl;
     }
     if (!(attr->flags & LAST)) {
         try {
@@ -389,9 +389,10 @@ ostream& operator<<(ostream& os, const Name* attr) {
     catch (...) {
         path = string("@").append(to_string(dir)).append("/").append(path);
     }
-    os << "NAME: ";
-    os << path << endl;
-    os << "directory: " << outvar(attr->dir) << endl
+    os << "NAME: " << path;
+    if (attr->length <= 16) os << tab; else os << endl;
+    pdump(attr->data, attr->data + attr->length);
+    os << endl << "directory: " << outvar(attr->dir) << endl
         << "creation: " << outtime(attr->creatTime) << endl
         << "modification: " << outtime(attr->modTime) << endl
         << "entry change: " << outtime(attr->changeTime) << endl

@@ -147,7 +147,8 @@ File::File(LBA lba, const Record* record, Context& context):
 
 ostream& operator<<(ostream& os, const File& file) {
     cerr << "\033[2K";     // just print file basic info and return to line begin
-    os << hex << uppercase << 'x' << file.lba << tab << file.getType();
+    os << hex << uppercase << 'x' << file.lba << tab << file.getType() << '/' << dec << file.index << tab
+        << file.path << file.name << tab << file.time;
     if (!file.done) {
         cerr.flush();
         os << "...\r";     // just print file basic info and return to line begin
@@ -159,7 +160,7 @@ ostream& operator<<(ostream& os, const File& file) {
         if (!file.used || !file.valid || file.exists) return os << '\r';
         if (file.empty() || file.dir) return os << '\r';
     }
-    os << '/' << dec << file.index << tab << file.path << file.name << tab << file.time << tab;
+    os << tab;
     if (!file.content) {
         if (file.size) {
             os << "size:" << (file.size > 1024? file.size/1024: file.size);
@@ -250,7 +251,7 @@ ifstream& operator>>(ifstream& ifs, File& file)
                 if (!file.dir) {
                     if (!file.ofs.is_open()) {
                         file.magic = *reinterpret_cast<uint64_t*>(buffer.data()) & file.context.mask;
-                        if (file.magic != file.context.magic) {
+                        if (file.context.magic && file.magic != file.context.magic) {
                             if (Context::verbose) {
                                 cerr << "No magic/" << hex << file.context.mask << ':'
                                     << outpaix(file.magic, file.context.magic) << tab;
@@ -260,7 +261,7 @@ ifstream& operator>>(ifstream& ifs, File& file)
                             file.valid = false;
                             goto out;
                         }
-                        else if (!file.open()) {
+                        if (!file.open()) {
                             if (!file.done) file.error = false;
                             return ifs;
                         }
@@ -319,7 +320,7 @@ void File::mangle() {
 
 bool File::open()
 {
-    bool magic = false;
+    bool magic = true;
     string target(context.dir);
     mangle();
     target.append(path);
@@ -337,7 +338,7 @@ bool File::open()
             if (!file.is_open()) cerr << "Can not open existing file for read magic: " << full;
             file.read(&key.cmagic, sizeof(key)); 
             key.magic &= context.mask;
-            if (key.magic == context.magic) magic = true;
+            if (key.magic != context.magic) magic = false;
         }
         if (magic && (time_t) time >= info.st_mtime && size >= info.st_size && !context.force) {   // check file size against MFT record
             if (context.verbose) cerr << ", and its data seems OK. Skipping" << endl;
@@ -346,7 +347,6 @@ bool File::open()
             return false;
         }
         if (context.verbose) cerr << ", but will be overwritten" << endl;
-        exists = false;
     }
     else if (!filesystem::exists(target)) {
         if (context.verbose) cerr << "Creating file target directory: " << target << endl;
