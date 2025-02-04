@@ -19,7 +19,10 @@ ostream& operator<<(ostream& oss, const Context& context) {
     oss << ", ";
     if (context.count > 0) oss << "count:" << context.count << ", ";
     if (context.show > 0) oss << "show:" << context.show << ", ";
-    if (context.magic) oss << "magic:" << hex << uppercase << 'x' << context.magic << ", ";
+    if (context.magic) {
+        oss << "magic:" << hex << uppercase << 'x' << context.magic << '/';
+        cerr.write(&context.cmagic, sizeof(context.magic)) << ", ";
+    }
     if (!context.include.empty()) {
         oss << "include:";
         for (auto extension: context.include) oss << extension << ",";
@@ -52,8 +55,11 @@ ostream& operator<<(ostream& oss, const Context& context) {
         if (context.force) oss << ", overwrite existing files";
         oss << endl;
     }
-    if (context.last && context.first > context.last)
-        cerr << "End lba lower that start lba" << endl;
+    if (context.last && context.first > context.last) cerr << "End lba lower that start lba" << endl;
+    if (context.recover) {
+        cerr << endl << "\tPress enter to confirm...";
+        cin.get();
+    }
     return oss << endl;
 }
 

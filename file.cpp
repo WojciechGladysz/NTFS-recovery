@@ -45,8 +45,8 @@ string File::getType() const {
     string type;
     if (error) type = '!';
     if (!used) type += "not used";
-    else if (!valid) type += "not valid";
     else if (dir) type += "DIR";
+    else if (!valid) type += "not valid";
     else if (error) type += "ERROR";
     else if (empty()) type += "empty";
     else if (!context.force && exists) type += "exist";
@@ -142,24 +142,25 @@ File::File(LBA lba, const Record* record, Context& context):
         context.bias = lba - runlist[0].first * context.sectors;
         cerr << "New context LBA bias based on last $MFT record: "
             << outvar(context.bias) << endl;
+        dirs.clear();
     }
 }
 
 ostream& operator<<(ostream& os, const File& file) {
-    cerr << "\033[2K";     // just print file basic info and return to line begin
+    if (!file.context.all && file.done) {
+        if (!file.used || !file.valid || file.exists) return os;
+        if (file.empty() || file.dir) return os;
+    }
+    cerr << clean;     // just print file basic info and return to line begin
     os << hex << uppercase << 'x' << file.lba << tab << file.getType() << '/' << dec << file.index << tab
         << file.path << file.name << tab << file.time;
     if (!file.done) {
         cerr.flush();
-        os << "...\r";     // just print file basic info and return to line begin
+        os << "..." << tab;     // just print file basic info and return to line begin
         os.flush();
         return os;
     }
     file.context.dec();
-    if (!file.context.all) {
-        if (!file.used || !file.valid || file.exists) return os << '\r';
-        if (file.empty() || file.dir) return os << '\r';
-    }
     os << tab;
     if (!file.content) {
         if (file.size) {
@@ -253,8 +254,8 @@ ifstream& operator>>(ifstream& ifs, File& file)
                         file.magic = *reinterpret_cast<uint64_t*>(buffer.data()) & file.context.mask;
                         if (file.context.magic && file.magic != file.context.magic) {
                             if (Context::verbose) {
-                                cerr << "No magic/" << hex << file.context.mask << ':'
-                                    << outpaix(file.magic, file.context.magic) << tab;
+                                cerr << "No magic/x" << hex << file.context.mask << ':'
+                                    << outpaix(file.magic, file.context.magic) << ',';
                                 cerr.write(&file.cmagic, sizeof(file.magic)) << '/';
                                 cerr.write(&file.context.cmagic, sizeof(file.context.magic)) << endl;
                             }

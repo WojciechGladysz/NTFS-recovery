@@ -140,6 +140,7 @@ Parsed arguments:
         file.recover();
         waitpid(-1, NULL, WNOHANG);
     }
+
     idev.close();
     cerr << "\033[2K\r";
     cerr << "Wait for child processes... ";

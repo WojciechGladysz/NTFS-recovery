@@ -62,6 +62,7 @@ struct __attribute__ ((packed)) Node {
     uint16_t    length;
     char16_t    name[];
     bool        parse(File*) const;
+    string      getName() const;
     friend ostream& operator<<(ostream&, const Node*);
 };
 
@@ -118,6 +119,7 @@ struct __attribute__ ((packed)) Resident {
 struct __attribute__ ((packed)) Nonres {
     VCN    first;
     VCN    last;
+
     uint16_t    runlist;
     uint16_t    compress;
     uint8_t     padding[4];
