@@ -47,7 +47,6 @@ string File::getType() const {
     if (!used) type += "not used";
     else if (dir) type += "DIR";
     else if (!valid) type += "not valid";
-    else if (error) type += "ERROR";
     else if (empty()) type += "empty";
     else if (!context.force && exists) type += "exist";
     else if (done && context.mask && context.magic != magic) type += "no magic";
@@ -63,7 +62,7 @@ void File::map(const Record* record, uint64_t offset) {
         dirs[record->rec - offset] = make_pair(name, parent);
         if (context.extra) {
             if (!context.dirs.is_open())
-                context.dirs.open("ntfs.dirs", ios::binary);
+                context.dirs.open("ntfs.dirs");
             if (context.dirs.is_open())
                 context.dirs << dec << record->rec - offset << tab << name << tab << parent << endl;
         }
@@ -72,6 +71,7 @@ void File::map(const Record* record, uint64_t offset) {
 
 bool File::setPath(const Record* record)
 {
+    if (!valid) return false;
     string path = "/";
     bool trash = false;
     uint64_t dir = parent;
@@ -97,15 +97,19 @@ bool File::setPath(const Record* record)
                 idev.read(buffer.data(), buffer.size());
                 const Record* parent = reinterpret_cast<const Record*>(buffer.data());
                 if (*parent) {
-                    if (parent->dir()) map(parent, 0);
+                    if (parent->dir())
+                        map(parent, 0);
                     else {
                         offset = int64_t((last + (1<<16) - index) * entry) / context.sector;
                         dir = lba + offset;
                         if (idev.seekg(dir * context.sector)) {
                             idev.read(buffer.data(), buffer.size());
                             Record* parent = reinterpret_cast<Record*>(buffer.data());
-                            if (*parent)
-                                if (parent->dir()) map(parent, 1<< 16);
+                            if (*parent && parent->dir()) map(parent, 1<< 16);
+                            else {
+                                error = true;
+                                return false;
+                            }
                         }
                     }
                     return setPath(record);
@@ -133,7 +137,7 @@ File::File(LBA lba, const Record* record, Context& context):
     while (next) next = next->parse(this); 
     hit(context.include, true);
     hit(context.exclude, false);
-    if (valid) setPath(record);
+    setPath(record);
     if (!index) {
         if (context.verbose && runlist.empty()) {
             cerr << "No runlist in $MFT file" << endl;
@@ -148,8 +152,8 @@ File::File(LBA lba, const Record* record, Context& context):
 
 ostream& operator<<(ostream& os, const File& file) {
     if (!file.context.all && file.done) {
-        if (!file.used || !file.valid || file.exists) return os;
-        if (file.empty() || file.dir) return os;
+        if (!file.used || !file.valid || file.exists || file.empty()) return os;
+        if (file.context.recover && file.dir) return os;
     }
     cerr << clean;     // just print file basic info and return to line begin
     os << hex << uppercase << 'x' << file.lba << tab << file.getType() << '/' << dec << file.index << tab

@@ -57,7 +57,10 @@ struct __attribute__ ((packed)) Node {
     uint8_t     flags;
     uint8_t     padding[3];
 
-    uint64_t    data[8];
+    union {
+        uint64_t    data[8];
+        char        cdata[1];
+    };
 
     uint16_t    length;
     char16_t    name[];
@@ -149,7 +152,7 @@ struct __attribute__ ((packed)) Attr {
     const Attr* getNext() const;
     uint16_t getDir(string& name) const;
     const Attr* parse(File* file) const;
-    const Name* getName() const;
+    const Name* getNextName() const;
     friend ostream& operator<<(ostream&, const Attr*);
 };
 

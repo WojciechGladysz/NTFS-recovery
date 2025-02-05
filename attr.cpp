@@ -128,31 +128,64 @@ bool Nonres::parse(File* file) const {
 
 std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> converter;
 
+string convertName(const char16_t* start, const char16_t* stop)
+{
+    string name;
+    union __attribute__ ((packed)) chrs{
+        char16_t    wch;
+        struct {
+            char    lch;
+            char    hch;
+        };
+    };
+    const chrs* wch = reinterpret_cast<const chrs*>(start);
+    const chrs* end = reinterpret_cast<const chrs*>(stop);
+    while (wch < end) {
+        if ((wch->wch & 0xC0) == 0x80);
+        else if ((wch->wch & 0xD0) == 0xC0) {
+            if (wch->hch) {
+                name.push_back(wch->lch);
+                name.push_back(wch->hch);
+            }
+            else {
+                name.push_back(wch++->lch);
+                name.push_back(wch->lch);
+            }
+        }
+        else name.append(converter.to_bytes(&wch->wch, &wch->wch + 1));
+        wch++;
+    }
+    return name;
+}
+
 string Node::getName() const {
     string name;
-    const char16_t* end = reinterpret_cast<const char16_t*>((char*)data + this->end);
-    const char16_t* wch = this->name;
-    while(wch < end) name.push_back(*(char*)wch++);
+    const char16_t* end = reinterpret_cast<const char16_t*>(cdata + this->end);
+    name = convertName(this->name, end);
     return name;
 }
 
 string Name::getName() const {
-    string name;
-    int i = length;
-    const char16_t* wch = data;
-    while(i--) name.push_back(*(char*)wch++);
-    return name;
+    return convertName(data, data + length);
 }
 
 bool Name::parse(File* file) const {
     if (!file) return false;
-    file->name = getName();
-    file->parent = dir; 
+
+    string name = getName();
+    if (space < 2)
+        file->name = name;
+    else if (file->name.empty())
+        file->name = name;
+
+    file->parent = dir;
+    file->valid = !name.empty();
 
     if (file->name.npos != file->name.find('.')) {
         istringstream ext(file->name);
         while (getline(ext, file->ext, '.'));
     }
+    else return file->valid;
 
     if (!file->ext.empty()) {
         lower(file->ext);
@@ -160,7 +193,7 @@ bool Name::parse(File* file) const {
                 && exts.end() == exts.find(file->ext)) {
             exts.insert(file->ext);
             if (file->context.extra) {
-                if (!file->context.exts.is_open()) file->context.exts.open("ntfs.exts", ios::binary);
+                if (!file->context.exts.is_open()) file->context.exts.open("ntfs.exts");
                 if (file->context.exts.is_open()) {
                     file->context.exts << file->ext << ',';
                     file->context.exts.flush();
@@ -169,7 +202,6 @@ bool Name::parse(File* file) const {
         }
     }
 
-    file->valid = !file->name.empty();
     return file->valid;
 }
 
@@ -205,7 +237,7 @@ bool Runlist::parse(File* file) const {
     const Runlist* attr = this;
     while (attr->lenSize && attr->offSize) {
         if (attr->lenSize > 4 || attr->offSize > 4) {
-            if (file) file->valid = false;
+            if (file) file->error = false;
             return false;
         }
         uint64_t maskL = ((1LL<<(8*attr->lenSize))-1LL);
@@ -227,7 +259,7 @@ bool Runlist::parse(File* file) const {
 bool Node::parse(File *file) const {
         try {
             string dir;
-            const char16_t* stop = reinterpret_cast<char16_t*>((char*)data + end);
+            const char16_t* stop = reinterpret_cast<const char16_t*>(cdata + end);
             dir = getName();
             file->entries.emplace_back(index, dir);
         }
@@ -339,14 +371,12 @@ ostream& operator<<(ostream& os, const Name* attr) {
     return os;
 }
 
-const Name* Attr::getName() const {
+const Name* Attr::getNextName() const {
     const Attr* attr = this;
-    const Name* name = nullptr;
-    while (attr) {
-        if (attr->type == AttrId::FileName) name = reinterpret_cast<const Name*>((char*)attr + attr->res.offset);
-        attr = attr->getNext();
-    }
-    return name;
+    if (attr->type == AttrId::FileName) return reinterpret_cast<const Name*>((char*)attr + attr->res.offset);
+    else while (attr = attr->getNext())
+        if (attr->type == AttrId::FileName) return reinterpret_cast<const Name*>((char*)attr + attr->res.offset);
+    return nullptr;
 }
 
 ostream& operator<<(ostream& os, const Attr* attr) {
@@ -359,7 +389,7 @@ ostream& operator<<(ostream& os, const Attr* attr) {
     if (attr->length) { // attribute yield alternate data stream
         const char16_t* w_name = reinterpret_cast<const char16_t*>((char*)attr + attr->offset);
         os << "Attribute/" << outpair((uint)attr->length, attr->offset)
-            << ": " <<  converter.to_bytes(w_name, w_name + attr->length) << tab;
+            << ": " <<  convertName(w_name, w_name + attr->length) << tab;
         ldump(w_name, sizeof(*w_name) * attr->length);
         os << endl;
     }
