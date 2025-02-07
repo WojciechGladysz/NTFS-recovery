@@ -1,10 +1,11 @@
 #pragma once
 #include <iostream>
 #include <ctime>
-#include <string>
 #include <thread>
-
 #include <cstdint>
+
+#include <string>
+#include <vector>
 
 using VCN = uint64_t;
 using namespace std;
@@ -12,7 +13,7 @@ using namespace std;
 enum class Time: uint64_t;
 class File;
 
-enum class AttrId: __attribute__ ((packed)) uint32_t;
+enum class AttrId: uint32_t;
 
 struct __attribute__ ((packed)) Info {
     Time        creatTime;
@@ -106,22 +107,42 @@ struct __attribute__ ((packed)) Runlist {
             uint32_t    offset;
         };
     };
-    bool    parse(File* file) const;
+    vector<pair<VCN, VCN>> parse(File* file) const;
     friend ostream& operator<<(ostream&, const Runlist*);
 };
 
-struct __attribute__ ((packed)) Resident {
+struct __attribute__ ((packed)) Attr {
+    AttrId      type;
+    uint16_t    size;  
+    uint16_t    unknown;  
+
+    uint8_t     noRes;     
+    uint8_t     length;
+    uint16_t    offset;
+    uint16_t    flags;
+    uint16_t    id;
+
+    const Attr* getNext() const;
+    uint16_t getDir(string& name) const;
+    const Attr* parse(File* file) const;
+    const Name* getName() const;
+    friend ostream& operator<<(ostream&, const Attr*);
+};
+
+struct __attribute__ ((packed)) Resident:Attr {
     uint32_t    length;
     uint16_t    offset;
     uint8_t     indexed;
     uint8_t     padding;
-    bool        parse(File* file) const { return true; }
+
+    char        data[];
+    bool        parse(File* file) const;
     friend ostream& operator<<(ostream&, const Resident*);
 };
 
-struct __attribute__ ((packed)) Nonres {
-    VCN    first;
-    VCN    last;
+struct __attribute__ ((packed)) Nonres:Attr {
+    VCN         first;
+    VCN         last;
 
     uint16_t    runlist;
     uint16_t    compress;
@@ -134,26 +155,6 @@ struct __attribute__ ((packed)) Nonres {
 
     bool        parse(File*) const;
     friend ostream& operator<<(ostream&, const Nonres*);
-};
-
-struct __attribute__ ((packed)) Attr {
-    AttrId      type;
-    uint16_t    size;  
-    uint16_t    unknown;  
-    uint8_t     noRes;     
-    uint8_t     length;
-    uint16_t    offset;
-    uint16_t    flags;
-    uint16_t    id;
-    union {
-        Resident    res;
-        Nonres      nonres;
-    };
-    const Attr* getNext() const;
-    uint16_t getDir(string& name) const;
-    const Attr* parse(File* file) const;
-    const Name* getNextName() const;
-    friend ostream& operator<<(ostream&, const Attr*);
 };
 
 ostream& operator<<(ostream& os, const Time time);

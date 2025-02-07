@@ -32,9 +32,9 @@ int main(int n, char** argv) {
             if (*arg == 'R') { context.recover = true; continue; }
             if (*arg == 'c') { context.confirm = true; continue; }
             if (*arg == 'a') { context.all = true; continue; }
-            if (*arg == 'X') { context.extra = true; continue; }
+            if (*arg == 'I') { context.extra = true; continue; }
             if (*arg == 'f') { context.force = true; continue; }
-            if (*arg == 'I') { context.index = true; continue; }
+            if (*arg == 'X') { context.index = true; continue; }
             if (*arg == 'r') { context.recycle = true; continue; }
             if (*arg == 'v') {
                 if (context.verbose) context.debug = true;
@@ -71,7 +71,7 @@ int main(int n, char** argv) {
     }
 
     if (help) cout << R"EOF(options:
--h      display this help message
+-h      display this help message and quit, helpfull to see other argument parsed
 -d      device or file to open, example: /dev/sdc, /dev/sdd1, ./$MFT
 -l      device LBA to start the scan from, hex is ok with 0x
 -L      device LBA to stop the scan before, hex is ok with 0x
@@ -88,13 +88,12 @@ int main(int n, char** argv) {
         mime types are OK, example: image, video
 -r      include files from recycle bin
 -v      be verbose, if repeated be more verbose with debug info
--I      show index allocations
+-I      include directories
+-X      include index allocations
 -Y      file path under target directory will be altered to /yyyy/
 -M      file path under target directory will be altered to /yyyy/mm/
 -D      file path under target directory will be altered to /yyyy/mm/dd/
         based on file original modifaction time, useful for media files recovery
--X      create extra files ntfs.dirs, ntfs.exts in current directory with scanned
-        directory entries and file extensions
 -a      show all entries including invalid or skipped
 -p      max number of child processes for big files recovery, see option -s
 -S      size of file in MB to start a new thread for the file recovery, default 16MB

@@ -23,11 +23,12 @@ bool File::hit(const set<string>& entries, bool must) {  // return means continu
     if (!valid) return false;           // no further checking
     if (entries.empty()) return true;   // continue other checking
     valid = !must;
+    string ext = this->ext;
+    lower(ext);
     for (auto extension: entries) {
         auto hit = context.mime.find(extension);
         if (hit != context.mime.end())
-            for (auto type: hit->second) {
-                if (type != ext) continue;
+            if (hit->second.find(ext) != hit->second.end()) {
                 valid = must;
                 return false;
             }
@@ -54,18 +55,12 @@ string File::getType() const {
     return type;
 }
 
-void File::map(const Record* record, uint64_t offset) {
+void File::mapDir(const Record* record, uint64_t offset) {
     string name;
     uint64_t parent;
     if (dirs.find(record->rec - offset) == dirs.end()) {
         parent = record->getParent(name);
         dirs[record->rec - offset] = make_pair(name, parent);
-        if (context.extra) {
-            if (!context.dirs.is_open())
-                context.dirs.open("ntfs.dirs");
-            if (context.dirs.is_open())
-                context.dirs << dec << record->rec - offset << tab << name << tab << parent << endl;
-        }
     }
 }
 
@@ -98,14 +93,14 @@ bool File::setPath(const Record* record)
                 const Record* parent = reinterpret_cast<const Record*>(buffer.data());
                 if (*parent) {
                     if (parent->dir())
-                        map(parent, 0);
+                        mapDir(parent, 0);
                     else {
                         offset = int64_t((last + (1<<16) - index) * entry) / context.sector;
                         dir = lba + offset;
                         if (idev.seekg(dir * context.sector)) {
                             idev.read(buffer.data(), buffer.size());
                             Record* parent = reinterpret_cast<Record*>(buffer.data());
-                            if (*parent && parent->dir()) map(parent, 1<< 16);
+                            if (*parent && parent->dir()) mapDir(parent, 1<< 16);
                             else {
                                 error = true;
                                 return false;
@@ -143,7 +138,7 @@ File::File(LBA lba, const Record* record, Context& context):
             cerr << "No runlist in $MFT file" << endl;
             confirm();
         }
-        context.bias = lba - runlist[0].first * context.sectors;
+        context.bias = lba - runlist[0].list[0].first * context.sectors;
         cerr << "New context LBA bias based on last $MFT record: "
             << outvar(context.bias) << endl;
         dirs.clear();
@@ -151,9 +146,9 @@ File::File(LBA lba, const Record* record, Context& context):
 }
 
 ostream& operator<<(ostream& os, const File& file) {
-    if (!file.context.all && file.done) {
-        if (!file.used || !file.valid || file.exists || file.empty()) return os;
-        if (file.context.recover && file.dir) return os;
+    if (file.done) {
+        if (!file.context.all) if (!file.used || !file.valid || file.exists || file.empty()) return os;
+        if (file.dir) if (file.context.recover || !file.context.extra) return os;
     }
     cerr << clean;     // just print file basic info and return to line begin
     os << hex << uppercase << 'x' << file.lba << tab << file.getType() << '/' << dec << file.index << tab
@@ -170,22 +165,24 @@ ostream& operator<<(ostream& os, const File& file) {
         if (file.size) {
             os << "size:" << (file.size > 1024? file.size/1024: file.size);
             if (file.size > 1024) os << 'k';
-            os << tab;
             if (!file.runlist.empty())
-                // LCN * sector size * sectors per cluster
-                for (auto run: file.runlist)
-                    // os << outpaix(run.first, run.second) << tab;
-                    os << outpaix(run.first * file.context.sectors, run.second * file.context.sectors) << tab;
-            // os << "max:" << outvar(Runlist::maxLcn * file.context.sectors) << tab;
+                for (auto entry: file.runlist) {
+                    os << tab << entry.second.count << ':';
+                    for (auto run: entry.second.list)
+                        // os << outpaix(run.first, run.second) << tab;
+                        os << outpaix(run.first * file.context.sectors, run.second * file.context.sectors) << tab;
+                    // os << "max:" << outvar(Runlist::maxLcn * file.context.sectors) << tab;
+                }
         }
     }
-    else os << "resident" << tab;
+    else os << "size:" << file.size << tab << "resident";
 
-    if (!file.context.recover && file.dir && !file.entries.empty()) {
-        os << ": ";
-        for (auto& entry: file.entries) os << entry.first << '/' << entry.second << tab;
+    if (!file.dir || file.context.recover || !file.context.extra) return os << endl;
+    os << tab << ':';
+    for (auto& entry: file.entries) {
+        os << tab << entry.first;
+        if (file.context.verbose) os << '/' << entry.second;
     }
-
     return os << endl;
 }
 
@@ -233,54 +230,59 @@ ifstream& operator>>(ifstream& ifs, File& file)
     vector<char> buffer(file.context.sector * file.context.sectors);
     streamsize chunk, bytes = file.size;
     if (!file.runlist.empty())
-        for (auto run: file.runlist) {
-            int64_t first = run.first * file.context.sectors;
-            first += file.context.bias;
-            if (first < 0) {
-                cerr << "Runlist LBA negative: " << first
-                    << ". Try scanning disk device not partition or partition not a file" << endl;
-                file.error = true;
-                confirm;
-                return ifs;
-            }
-            if (!ifs.seekg(first * file.context.sector))
-                    if (file.context.verbose) cerr << "Error seeking to lba: " << outpaix(first, ifs.tellg()) << ", error: " << strerror(errno) << endl;
-            for (auto lcn = run.first; lcn < run.second; lcn++) {
-                auto chunk = bytes/buffer.size()? buffer.size(): bytes % buffer.size();
-                if (!ifs.read(buffer.data(), chunk)) {
-                    if (file.context.verbose) cerr << "Error reading: "
-                        << outpaix(lcn, ifs.tellg()) << ", error: " << strerror(errno) << endl;
+        for (auto entry: file.runlist)
+            for (auto run: entry.second.list) {
+                int64_t first = run.first * file.context.sectors;
+                first += file.context.bias;
+                if (first < 0) {
+                    cerr << "Runlist LBA negative: " << first
+                        << ". Try scanning disk device not partition or partition not a file" << endl;
                     file.error = true;
-                    goto out;
+                    confirm;
+                    return ifs;
                 }
-                if (!file.dir) {
-                    if (!file.ofs.is_open()) {
-                        file.magic = *reinterpret_cast<uint64_t*>(buffer.data()) & file.context.mask;
-                        if (file.context.magic && file.magic != file.context.magic) {
-                            if (Context::verbose) {
-                                cerr << "No magic/x" << hex << file.context.mask << ':'
-                                    << outpaix(file.magic, file.context.magic) << ',';
-                                cerr.write(&file.cmagic, sizeof(file.magic)) << '/';
-                                cerr.write(&file.context.cmagic, sizeof(file.context.magic)) << endl;
-                            }
-                            file.valid = false;
-                            goto out;
-                        }
-                        if (!file.open()) {
-                            if (!file.done) file.error = false;
-                            return ifs;
-                        }
+                if (!ifs.seekg(first * file.context.sector))
+                    if (file.context.verbose) cerr << "Error seeking to lba: " << outpaix(first, ifs.tellg()) << ", error: " << strerror(errno) << endl;
+                auto lcn = run.first;
+                size_t i = 0;
+                for (; lcn < run.second && i < entry.second.count; lcn++, i++) {
+                    auto chunk = bytes/buffer.size()? buffer.size(): bytes % buffer.size();
+                    if (!ifs.read(buffer.data(), chunk)) {
+                        if (file.context.verbose) cerr << "Error reading: "
+                            << outpaix(lcn, ifs.tellg()) << ", error: " << strerror(errno) << endl;
+                        file.error = true;
+                        goto out;
                     }
-                    file.ofs.write(buffer.data(), chunk);
+                    bytes -= chunk;
+                    if (!file.dir) {
+                        if (!file.ofs.is_open()) {
+                            file.magic = *reinterpret_cast<uint64_t*>(buffer.data()) & file.context.mask;
+                            if (file.context.magic && file.magic != file.context.magic) {
+                                if (Context::verbose) {
+                                    cerr << "No magic/x" << hex << file.context.mask << ':'
+                                        << outpaix(file.magic, file.context.magic) << ',';
+                                    cerr.write(&file.cmagic, sizeof(file.magic)) << '/';
+                                    cerr.write(&file.context.cmagic, sizeof(file.context.magic)) << endl;
+                                }
+                                file.valid = false;
+                                goto out;
+                            }
+                            if (!file.open()) {
+                                if (!file.done) file.error = false;
+                                return ifs;
+                            }
+                        }
+                        file.ofs.write(buffer.data(), chunk);
+                    }
+                    else {
+                        const Index* index = reinterpret_cast<const Index*>(buffer.data());
+                        if (*index)
+                            index->header->parse(&file);
+                        else
+                            file.error = true;
+                    }
                 }
-                else {
-                    const Index* index = reinterpret_cast<const Index*>(buffer.data());
-                    if (*index) index->header->parse(&file);
-                    else file.error = true;
-                }
-                bytes -= chunk;
             }
-        }
     else if(file.content) {
         file.magic = *reinterpret_cast<const uint16_t*>(file.content);
         if (file.context.magic && file.context.magic != file.magic & file.context.mask)

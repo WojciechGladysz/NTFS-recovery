@@ -22,7 +22,6 @@ struct Context {
     bool			recover, all, force, index, recycle, extra;
     uint            sector, sectors;
     static bool     verbose, debug, confirm;
-    ofstream        dirs, exts;
     size_t          size;
 	uint			childs;
     sem_t*          sem;

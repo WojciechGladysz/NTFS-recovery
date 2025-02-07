@@ -41,7 +41,9 @@ ostream& operator<<(ostream& oss, const Context& context) {
     }
     if (context.confirm) oss << "confirm, ";
     if (context.all) oss << "show all, ";
+    else if (context.extra) oss << "show dirs, ";
     if (context.index) oss << "show index entries, ";
+
     if (context.format != Context::Format::None) {
         oss << "path:/yyyy/";
         if (context.format > Context::Format::Year) oss << "mm/";

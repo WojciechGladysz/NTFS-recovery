@@ -70,16 +70,16 @@ uint64_t Record::getParent(string& name) const {
 }
 
 const Name* Record::getName() const {
-    const Attr* attr = reinterpret_cast<const Attr*>((char*)this + this->attr); // pointer to record first attribute
-    const Name* name;               // pointer to FileName attribute data
+    auto* attr = reinterpret_cast<const Attr*>((char*)this + this->attr); // pointer to record first attribute
     const Name* result = nullptr;   // pointer to first FileName attribute data with preferred name space
     while (attr) {
-        name = attr->getNextName();
-        if (!name) break;
+        auto* name = attr->getName();
+        if (name) {
         if (name->space < 2)
             result = name;
         else if (!result)
             result = name;
+        }
         attr = attr->getNext();
     }
     return result;
@@ -118,7 +118,7 @@ ostream& operator<<(ostream& os, const Record* record) {
         << "Attributes:\n" << endl;
     const Attr* next = reinterpret_cast<const Attr*>(record->key + record->attr);
     while (next) {
-        if (Context::debug) os << '@' << hex << ((char*)next - record->key) << ": ";
+        if (Context::debug) os << '@' << hex << (void*)((char*)next - record->key) << ": ";
         os << next << endl;
         next = next->getNext();
     }

@@ -11,6 +11,9 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 
+#include <map>
+#include <vector>
+
 #include "attr.hpp"
 #include "helper.hpp"
 #include "context.hpp"
@@ -23,17 +26,6 @@ using namespace std;
 
 static unordered_map<string, set<string>> mime;
 static set<string> exts;
-
-time_t convert(const Time time) {
-    time_t timestamp = (uint64_t)time/INTERVALS_PER_SECOND - NTFS_TO_UNIX_EPOCH;
-    return timestamp;
-}
-
-ostream& operator<<(ostream& os, const Time time) {
-    time_t timestamp = convert(time);
-    os << std::put_time(std::localtime(&timestamp), "%Y.%m.%d %H:%M:%S");
-    return os;
-}
 
 enum class AttrId: __attribute__ ((packed)) uint32_t
 {
@@ -75,55 +67,9 @@ unordered_map<const AttrId, const string> attrName {
     { AttrId::LoggedUtilityStream, "$LOGGED UTILITY STREAM" }
 };
 
-bool Info::parse(File* file) const {
-    file->time = static_cast<Time_t>(convert(changeTime));
-    file->access = static_cast<Time_t>(convert(accessTime));
-    return true;
-}
-
-const Attr* Attr::getNext() const {
-    Attr* next = (Attr*)((char*)this + (size & 0xFFFF));
-    // if (size > 0xFFFF) cerr << "Bad offset to next attr. using 0XFFFF mask" << endl;
-    if (next->type == AttrId::End) return nullptr;
-    if ((uint16_t)next->type && next->size)
-        return (Attr*)((char*)this + (size & 0xFFFF));
-    cerr << "Next attribute corrupted: " << outpair((uint16_t)next->type, next->size) << endl;
-    confirm();
-    return nullptr;
-}
-
-ostream& operator<<(ostream& os, const Info* attr) {
-    os << "creation: " << outtime(attr->creatTime) << endl
-        << "change: " << outtime(attr->changeTime) << endl
-        << "write: " << outtime(attr->writeTime) << endl
-        << "access: " << outtime(attr->accessTime) << endl
-        << "attr: " << outvar(attr->attr) << endl;
-    return os;
-}
-
-ostream& operator<<(ostream& os, const Resident attr) {
-    os << "Resident/" << outpaix(attr.length, attr.offset) << tab;
-    ldump(&attr, sizeof(attr));
-    return os;
-}
-
-ostream& operator<<(ostream& os, const Nonres attr) {
-    os << "Nonresident" << endl;
-    if (pdump(&attr, attr.data)) os << endl;
-    os << "first: " << outvar(attr.first) << tab
-        << "last: " << outvar(attr.last) << tab
-        << "offset: " << outvar(attr.runlist) << tab
-        << "compress: " << outvar(attr.compress) << tab
-        << "size: " << outvar(attr.size) << tab
-        << "alloc: " << outvar(attr.alloc) << tab
-        << "used: " << outvar(attr.used) << endl;
-    return os;
-}
-
-bool Nonres::parse(File* file) const {
-    file->size = used & 0xFFFFFFFFFFFF;
-    file->alloc = alloc & 0xFFFFFFFFFFFF;
-    return true;
+time_t convert(const Time time) {
+    time_t timestamp = (uint64_t)time/INTERVALS_PER_SECOND - NTFS_TO_UNIX_EPOCH;
+    return timestamp;
 }
 
 std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> converter;
@@ -142,12 +88,12 @@ string convertName(const char16_t* start, const char16_t* stop)
     const chrs* end = reinterpret_cast<const chrs*>(stop);
     while (wch < end) {
         if ((wch->wch & 0xC0) == 0x80);
-        else if ((wch->wch & 0xD0) == 0xC0) {
+        else if ((wch->wch & 0xEC) == 0xC8) {
             if (wch->hch) {
                 name.push_back(wch->lch);
                 name.push_back(wch->hch);
             }
-            else {
+            else if (((wch+1)->wch & 0xC0) == 0x80) {
                 name.push_back(wch++->lch);
                 name.push_back(wch->lch);
             }
@@ -158,115 +104,51 @@ string convertName(const char16_t* start, const char16_t* stop)
     return name;
 }
 
-string Node::getName() const {
-    string name;
-    const char16_t* end = reinterpret_cast<const char16_t*>(cdata + this->end);
-    name = convertName(this->name, end);
-    return name;
-}
-
-string Name::getName() const {
-    return convertName(data, data + length);
-}
-
-bool Name::parse(File* file) const {
-    if (!file) return false;
-
-    string name = getName();
-    if (space < 2)
-        file->name = name;
-    else if (file->name.empty())
-        file->name = name;
-
-    file->parent = dir;
-    file->valid = !name.empty();
-
-    if (file->name.npos != file->name.find('.')) {
-        istringstream ext(file->name);
-        while (getline(ext, file->ext, '.'));
-    }
-    else return file->valid;
-
-    if (!file->ext.empty()) {
-        lower(file->ext);
-        if (file->ext.npos == file->ext.find(' ')       // no spaces in file extension
-                && exts.end() == exts.find(file->ext)) {
-            exts.insert(file->ext);
-            if (file->context.extra) {
-                if (!file->context.exts.is_open()) file->context.exts.open("ntfs.exts");
-                if (file->context.exts.is_open()) {
-                    file->context.exts << file->ext << ',';
-                    file->context.exts.flush();
-                }
-            }
-        }
-    }
-
-    return file->valid;
-}
-
-ostream& operator<<(ostream& os, const Runlist* attr) {
-    uint64_t length;
-    int64_t offset;
-    if (!attr->lenSize) return os << endl;
-    os << "runlist: ";
-    os.flush();
-    while (attr->lenSize && attr->offSize) {
-        uint64_t maskL = ((1LL<<(8*attr->lenSize))-1LL);
-        int64_t shift = attr->run >> (8*attr->lenSize);
-        auto maskO = ((1LL<<(8*attr->offSize))-1LL);
-        length = attr->run & (maskL);
-        offset = shift & maskO;
-        os << outpair(attr->offSize, attr->lenSize) << ':';
-        os << outpaix(offset, length) << '\t';
-        attr = (Runlist*)((char*)attr + 1 + attr->lenSize + attr->offSize);
-    }
-    os << endl;
+ostream& operator<<(ostream& os, const Time time) {
+    time_t timestamp = convert(time);
+    os << std::put_time(std::localtime(&timestamp), "%Y.%m.%d %H:%M:%S");
     return os;
 }
 
-uint64_t Runlist::minLcn = 0xFFFFFFFFFFFFFFFF;
-uint64_t Runlist::maxLcn = 0;
-
-bool Runlist::parse(File* file) const {
-    uint64_t length;
-    int64_t offset;
-    uint64_t lcn0 = 0;
-    uint64_t lcn = 0;
-    if (file) file->runlist.clear();
-    const Runlist* attr = this;
-    while (attr->lenSize && attr->offSize) {
-        if (attr->lenSize > 4 || attr->offSize > 4) {
-            if (file) file->error = false;
-            return false;
-        }
-        uint64_t maskL = ((1LL<<(8*attr->lenSize))-1LL);
-        int64_t shift = attr->run >> (8*attr->lenSize);
-        auto maskO = ((1LL<<(8*attr->offSize))-1LL);
-        length = attr->run & maskL;
-        offset = shift & maskO;
-        if (offset & (1LL<<(8*attr->offSize-1))) offset |= (0xFFFFFFFFFFFFFFFF << (8*attr->offSize));
-        lcn0 += offset;
-        lcn = lcn0 + length;
-        if (lcn0 < minLcn) minLcn = lcn0;
-        if (lcn > maxLcn) maxLcn = lcn;
-        if (file) file->runlist.push_back(make_pair(lcn0, lcn));
-        attr = (Runlist*)((char*)attr + 1 + attr->lenSize + attr->offSize);
-    }
-    return true;
+ostream& operator<<(ostream& os, const Info* attr) {
+    os << "creation: " << outtime(attr->creatTime) << endl
+        << "change: " << outtime(attr->changeTime) << endl
+        << "write: " << outtime(attr->writeTime) << endl
+        << "access: " << outtime(attr->accessTime) << endl
+        << "attr: " << outvar(attr->attr) << endl;
+    return os;
 }
 
-bool Node::parse(File *file) const {
-        try {
-            string dir;
-            const char16_t* stop = reinterpret_cast<const char16_t*>(cdata + end);
-            dir = getName();
-            file->entries.emplace_back(index, dir);
+ostream& operator<<(ostream& os, const Name* attr) {
+    string path = attr->getName();
+    uint16_t dir = attr->dir;
+    try {
+        string name;
+        uint16_t last = 0;
+        while (true) {
+            last = dir;
+            tie(name, dir) = File::dirs.at(dir);
+            if (dir == last) break;
+            path = name.append("/").append(path);
         }
-        catch (...) {
-            return false;
-        }
-        return true;
+    }
+    catch (...) {
+        path = string("@").append(to_string(dir)).append("/").append(path);
+    }
+    os << "NAME: " << path;
+    if (attr->length <= 16) os << tab; else os << endl;
+    pdump(attr->data, attr->data + attr->length);
+    os << endl << "directory: " << outvar(attr->dir) << endl
+        << "creation: " << outtime(attr->creatTime) << endl
+        << "modification: " << outtime(attr->modTime) << endl
+        << "entry change: " << outtime(attr->changeTime) << endl
+        << "access: " << outtime(attr->accessTime) << endl
+        << "size: " << outvar(attr->size) << endl
+        << "alloc: " << outvar(attr->alloc) << endl
+        << "flags: " << outvar(attr->flags) << endl
+        << "length: " << outchar(attr->length) << endl
+        << "space: " << outchar(attr->space) << endl;
+    return os;
 }
 
 ostream& operator<<(ostream& os, const Node* attr) {
@@ -281,14 +163,11 @@ ostream& operator<<(ostream& os, const Node* attr) {
         os << endl;
     }
     if (!(attr->flags & LAST)) {
-        try {
-            os << dec << attr->index << '/' << attr->getName();
-            if (attr->flags & SUB)
-                os << '-' << *reinterpret_cast<VCN*>((char*)attr + attr->size - 8);
-            if (Context::debug) os << endl;
-            else os << tab;
-        }
-        catch (...) { os << "N/A" << tab; }
+        os << dec << attr->index << '/' << attr->getName();
+        if (attr->flags & SUB)
+            os << '-' << *reinterpret_cast<VCN*>((char*)attr + attr->size - 8);
+        if (Context::debug) os << endl;
+        else os << tab;
     }
 
     return os;
@@ -324,8 +203,167 @@ ostream& operator<<(ostream& os, const Root* attr) {
     return os;
 }
 
-bool Root::parse(File* file) const {
-    return header->parse(file);
+ostream& operator<<(ostream& os, const Attr* attr) {
+    os << attr->id << "." << attrName[attr->type] << '/' << outpaix((uint)attr->type, attr->size) << tab;
+    if (ldump(attr, sizeof(Attr))) os << endl;
+    
+    if (attr->length) { // attribute yield alternate data stream
+        const char16_t* w_name = reinterpret_cast<const char16_t*>((char*)attr + attr->offset);
+        os << "Attribute/" << outpair((uint)attr->length, attr->offset)
+            << ": " <<  convertName(w_name, w_name + attr->length) << tab;
+        if (ldump(w_name, sizeof(*w_name) * attr->length)) os << endl;
+        else os << tab;
+    }
+
+    if (attr->noRes) os << static_cast<const Nonres*>(attr);
+    else os <<  static_cast<const Resident*>(attr);
+
+    return os;
+}
+
+ostream& operator<<(ostream& os, const Resident* attr) {
+    if (!Context::debug
+            && attr->type != AttrId::FileName
+            && attr->type != AttrId::IndexRoot
+            && attr->type != AttrId::Data
+            ) return os << endl;
+    os << "Resident/" << outpaix(attr->length, attr->offset) << tab;
+    pdump(&attr->length, attr->data);
+    os << endl;
+
+    const auto data = reinterpret_cast<const char*>(attr) + attr->offset;
+    if (attr->type == AttrId::StandardInfo) os << reinterpret_cast<const Info*>(data);
+    else if (attr->type == AttrId::FileName) os << reinterpret_cast<const Name*>(data);
+    else if (attr->type == AttrId::IndexRoot) os << reinterpret_cast<const Root*>(data);
+    else if (Context::debug && attr->type == AttrId::Data && attr->length) {
+        os << "File content: " << endl;
+        os.write(data, attr->length);
+        os << endl << "EOF" << endl;
+    }
+
+    return os;
+}
+
+ostream& operator<<(ostream& os, const Nonres* attr) {
+    os << "Nonresident" << endl;
+    if (pdump(&attr->first, attr->data)) os << endl;
+    os << "first: " << outvar(attr->first) << tab
+        << "last: " << outvar(attr->last) << tab
+        << "offset: " << outvar(attr->runlist) << tab
+        << "compress: " << outvar(attr->compress) << tab
+        << "size: " << outvar(attr->size) << tab
+        << "alloc: " << outvar(attr->alloc) << tab
+        << "used: " << outvar(attr->used) << endl;
+    const auto data = reinterpret_cast<const char*>(attr) + attr->runlist;
+    os << (Runlist*)data;
+    return os;
+}
+
+bool Info::parse(File* file) const {
+    file->time = static_cast<Time_t>(convert(changeTime));
+    file->access = static_cast<Time_t>(convert(accessTime));
+    return true;
+}
+
+string Node::getName() const {
+    string name;
+    const char16_t* end = reinterpret_cast<const char16_t*>(cdata + this->end);
+    try { name = convertName(this->name, end); }
+    catch (...) { name = "N/A"; }
+    return name;
+}
+
+string Name::getName() const {
+    return convertName(data, data + length);
+}
+
+bool Name::parse(File* file) const {
+    if (!file) return false;
+
+    string name = getName();
+    if (space < 2)
+        file->name = name;
+    else if (file->name.empty())
+        file->name = name;
+
+    file->parent = dir;
+    file->valid = !name.empty();
+
+    // find file extension for matching include/exclude parameter
+    if (file->name.npos != file->name.find('.')) {
+        istringstream ext(file->name);
+        while (getline(ext, file->ext, '.'));
+    }
+
+    return file->valid;
+}
+
+ostream& operator<<(ostream& os, const Runlist* attr) {
+    uint64_t length;
+    int64_t offset;
+    if (!attr->lenSize) return os << endl;
+    os << "runlist: ";
+    os.flush();
+    bool many = false;
+    while (attr->lenSize && attr->offSize) {
+        uint64_t maskL = ((1LL<<(8*attr->lenSize))-1LL);
+        int64_t shift = attr->run >> (8*attr->lenSize);
+        auto maskO = ((1LL<<(8*attr->offSize))-1LL);
+        length = attr->run & (maskL);
+        offset = shift & maskO;
+        if (Context::debug && many) os << tab;
+        os << outpair(attr->offSize, attr->lenSize) << ':' << outpaix(offset, length);
+        if (ldump(attr, attr->lenSize + attr->offSize + 1)) os << endl;
+        else os << tab;
+        attr = (Runlist*)((char*)attr + 1 + attr->lenSize + attr->offSize);
+        many = true;
+    }
+    if (!Context::debug) os << endl;
+    return os;
+}
+
+uint64_t Runlist::minLcn = 0xFFFFFFFFFFFFFFFF;
+uint64_t Runlist::maxLcn = 0;
+
+vector<pair<VCN, VCN>> Runlist::parse(File* file) const {
+    vector<pair<VCN, VCN>> runlist;
+    uint64_t length;
+    int64_t offset;
+    uint64_t lcn0 = 0;
+    uint64_t lcn = 0;
+    const Runlist* attr = this;
+    while (attr->lenSize && attr->offSize) {
+        if (attr->lenSize > 4 || attr->offSize > 4) {
+            if (file) file->error = false;
+            return runlist;
+        }
+        uint64_t maskL = ((1LL<<(8*attr->lenSize))-1LL);
+        int64_t shift = attr->run >> (8*attr->lenSize);
+        auto maskO = ((1LL<<(8*attr->offSize))-1LL);
+        length = attr->run & maskL;
+        offset = shift & maskO;
+        if (offset & (1LL<<(8*attr->offSize-1))) offset |= (0xFFFFFFFFFFFFFFFF << (8*attr->offSize));
+        lcn0 += offset;
+        lcn = lcn0 + length;
+        if (lcn0 < minLcn) minLcn = lcn0;
+        if (lcn > maxLcn) maxLcn = lcn;
+        runlist.push_back(make_pair(lcn0, lcn));
+        attr = (Runlist*)((char*)attr + 1 + attr->lenSize + attr->offSize);
+    }
+    return runlist;
+}
+
+bool Node::parse(File *file) const {
+    string entry;
+    const char16_t* stop = reinterpret_cast<const char16_t*>(cdata + end);
+    entry = getName();
+    file->entries.emplace_back(index, entry);
+    return true;
+}
+
+const Name* Attr::getName() const {
+    if (type == AttrId::FileName) return reinterpret_cast<const Name*>(static_cast<const Resident*>(this)->data);
+    else return nullptr;
 }
 
 bool Header::parse(File* file) const {
@@ -339,104 +377,52 @@ bool Header::parse(File* file) const {
     return true;
 }
 
-ostream& operator<<(ostream& os, const Name* attr) {
-    string path = attr->getName();
-    uint16_t dir = attr->dir;
-    try {
-        string name;
-        uint16_t last = 0;
-        while (true) {
-            last = dir;
-            tie(name, dir) = File::dirs.at(dir);
-            if (dir == last) break;
-            path = name.append("/").append(path);
-        }
-    }
-    catch (...) {
-        path = string("@").append(to_string(dir)).append("/").append(path);
-    }
-    os << "NAME: " << path;
-    if (attr->length <= 16) os << tab; else os << endl;
-    pdump(attr->data, attr->data + attr->length);
-    os << endl << "directory: " << outvar(attr->dir) << endl
-        << "creation: " << outtime(attr->creatTime) << endl
-        << "modification: " << outtime(attr->modTime) << endl
-        << "entry change: " << outtime(attr->changeTime) << endl
-        << "access: " << outtime(attr->accessTime) << endl
-        << "size: " << outvar(attr->size) << endl
-        << "alloc: " << outvar(attr->alloc) << endl
-        << "flags: " << outvar(attr->flags) << endl
-        << "length: " << outchar(attr->length) << endl
-        << "space: " << outchar(attr->space) << endl;
-    return os;
+bool Root::parse(File* file) const {
+    return header->parse(file);
 }
 
-const Name* Attr::getNextName() const {
-    const Attr* attr = this;
-    if (attr->type == AttrId::FileName) return reinterpret_cast<const Name*>((char*)attr + attr->res.offset);
-    else while (attr = attr->getNext())
-        if (attr->type == AttrId::FileName) return reinterpret_cast<const Name*>((char*)attr + attr->res.offset);
+const Attr* Attr::getNext() const {
+    if (!size) return nullptr;
+    Attr* next = (Attr*)((char*)this + size);
+    if (next->type == AttrId::End) return nullptr;
+    if ((uint16_t)next->type && next->size)
+        return next;
+    cerr << "Next attribute corrupted: " << outpair((uint16_t)next->type, next->size) << endl;
+    confirm();
     return nullptr;
 }
 
-ostream& operator<<(ostream& os, const Attr* attr) {
-    os << attr->id << "." << attrName[attr->type] << '/' << outpaix((uint)attr->type, attr->size) << tab;
-    if (pdump(attr, &attr->res) || !attr->noRes) os << endl;
-    
-    if (attr->noRes) os << attr->nonres;
-    // else os << attr->res;
-
-    if (attr->length) { // attribute yield alternate data stream
-        const char16_t* w_name = reinterpret_cast<const char16_t*>((char*)attr + attr->offset);
-        os << "Attribute/" << outpair((uint)attr->length, attr->offset)
-            << ": " <<  convertName(w_name, w_name + attr->length) << tab;
-        ldump(w_name, sizeof(*w_name) * attr->length);
-        os << endl;
-    }
-
-    if (attr->noRes) {
-        const auto data = reinterpret_cast<const char*>(attr) + attr->nonres.runlist;
-        if (ldump(data, attr->size - attr->nonres.runlist)) os << endl;
-        os << (Runlist*)data;
-    }
-    else {
-        const auto data = reinterpret_cast<const char*>(attr) + attr->res.offset;
-        if (attr->type == AttrId::StandardInfo) os << reinterpret_cast<const Info*>(data);
-        else if (attr->type == AttrId::FileName) os << reinterpret_cast<const Name*>(data);
-        else if (attr->type == AttrId::IndexRoot) os << reinterpret_cast<const Root*>(data);
-        else if (false && attr->type == AttrId::Data && attr->res.length) {
-            os << "File content: " << endl;
-            os.write(data, attr->res.length);
-            os << endl << "EOF" << endl;
-        }
-    }
-
-    return os;
+const Attr* Attr::parse(File* file) const {
+    if (noRes) static_cast<const Nonres*>(this)->parse(file);
+    else static_cast<const Resident*>(this)->parse(file);
+    return getNext();
 }
 
-const Attr* Attr::parse(File* file) const {
-    if (noRes) {
-        auto data = reinterpret_cast<const char*>(this) + nonres.runlist;
-        if (type == AttrId::Data && !length) { // no alternate data stream
-            nonres.parse(file);
-            reinterpret_cast<const Runlist*>(data)->parse(file);
-        }
-        else if (file->dir && type == AttrId::IndexAllocation) {
-            nonres.parse(file);
-            reinterpret_cast<const Runlist*>(data)->parse(file);
-        }
+bool Resident::parse(File* file) const {
+    void* data = reinterpret_cast<void*>((char*)this + offset);
+    if (type == AttrId::StandardInfo) return reinterpret_cast<const Info*>(data)->parse(file);
+    else if (type == AttrId::FileName) return reinterpret_cast<const Name*>(data)->parse(file);
+    else if (type == AttrId::IndexRoot) return reinterpret_cast<const Root*>(data)->parse(file);
+    else if (type == AttrId::Data && length) {
+        file->size = length;
+        return file->content = reinterpret_cast<char*>(data);
     }
-    else {
-        res.parse(file);
-        void* data = reinterpret_cast<void*>((char*)this + res.offset);
-        if (type == AttrId::StandardInfo) reinterpret_cast<const Info*>(data)->parse(file);
-        else if (type == AttrId::FileName) reinterpret_cast<const Name*>(data)->parse(file);
-        else if (type == AttrId::IndexRoot) reinterpret_cast<const Root*>(data)->parse(file);
-        else if (type == AttrId::Data && !length && res.length) {
-            file->size = res.length;
-            file->content = reinterpret_cast<char*>(data);
-        }
+    return false;
+}
+
+bool Nonres::parse(File* file) const {
+    if (!file) return false;
+    file->size = used & 0xFFFFFFFFFFFF;
+    file->alloc = alloc & 0xFFFFFFFFFFFF;
+    auto data = reinterpret_cast<const char*>(this) + runlist;
+    if ((type == AttrId::Data && !length)   // no alternate data stream
+            || (type == AttrId::IndexAllocation)) {
+        file->runlist.emplace(first, Run());
+        file->runlist[first].count = last - first;
+        auto& list = file->runlist[first].list;
+        auto runlist = reinterpret_cast<const Runlist*>(data)->parse(file);
+        list.insert(list.end(), runlist.begin(), runlist.end());
     }
-    return getNext();
+    return true;
 }
 
