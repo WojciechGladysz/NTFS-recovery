@@ -67,7 +67,7 @@ void File::mapDir(const Record* record, uint64_t offset) {
 bool File::setPath(const Record* record)
 {
     if (!valid) return false;
-    string path = "/";
+    path = "/";
     bool trash = false;
     uint64_t dir = parent;
     uint64_t last = 0;
@@ -113,7 +113,24 @@ bool File::setPath(const Record* record)
         }
     }
     valid = context.recycle || !trash;
-    this->path = path;
+    return true;
+}
+
+bool File::setBias(const Record* record) const
+{
+    if (!valid) return false;
+    if (!record->rec) return false;
+    ifstream idev(context.dev, ios::in | ios::binary);
+    if (idev.is_open()) {
+        int64_t offset = int64_t(index) * entry / context.sector;
+        int64_t first = lba - offset;
+        if (idev.seekg(first * context.sector)) {
+            vector<char> buffer(entry);
+            idev.read(buffer.data(), buffer.size());
+            const Record* record = reinterpret_cast<const Record*>(buffer.data());
+            File mft(first, record, context);
+        }
+    }
     return true;
 }
 
@@ -123,24 +140,29 @@ File::File(LBA lba, const Record* record, Context& context):
         content(nullptr), done(false), exists(false)
 {
     if (!record || !*record) return;
+    used = record->used();
+    if (!used) return;
     entry = record->alloc;
     index = record->rec;
-    used = record->used();
     dir = record->dir();
-    if (!used) return;
     const Attr* next = (const Attr*)(record->key + record->attr);
     while (next) next = next->parse(this); 
-    hit(context.include, true);
-    hit(context.exclude, false);
+    if (hit(context.include, true))
+        hit(context.exclude, false);
     setPath(record);
-    if (!index) {
+    if (index && valid)
+        if (lba < context.mft.first || lba >= context.mft.last)
+            setBias(record);
+    if (!index) {                                                   // this is MFT file own entry
         if (context.verbose && runlist.empty()) {
             cerr << "No runlist in $MFT file" << endl;
             confirm();
         }
-        context.bias = lba - runlist[0].list[0].first * context.sectors;
-        cerr << "New context LBA bias based on last $MFT record: "
-            << outvar(context.bias) << endl;
+        context.mft.first = lba;
+        context.bias = lba - runlist[0].list[0].first * context.sectors; 
+        context.mft.last = runlist[0].list[0].second * context.sectors + context.bias;
+        cerr << clean << "New context LBA bias based on last $MFT record: "
+            << outvar(context.bias) << '@' << outvar(lba) << endl;
         dirs.clear();
     }
 }
@@ -151,15 +173,14 @@ ostream& operator<<(ostream& os, const File& file) {
         if (file.dir) if (file.context.recover || !file.context.extra) return os;
     }
     cerr << clean;     // just print file basic info and return to line begin
-    os << hex << uppercase << 'x' << file.lba << tab << file.getType() << '/' << dec << file.index << tab
-        << file.path << file.name << tab << file.time;
+    os << hex << uppercase << 'x' << file.lba << tab << file.getType();
+    if (file.used) os<< '/' << dec << file.index << tab << file.path << file.name << tab << file.time;
     if (!file.done) {
         cerr.flush();
-        os << "..." << tab;     // just print file basic info and return to line begin
+        if (file.used && file.valid) os << "... ";     // just print file basic info and return to line begin
         os.flush();
         return os;
     }
-    file.context.dec();
     os << tab;
     if (!file.content) {
         if (file.size) {
@@ -213,7 +234,10 @@ void File::recover()
             else error = true;
         }
 
-    if (!context.recover || context.all) done = true;
+    if (!context.recover || context.all) {
+        done = true;
+        if (valid) context.dec();
+    }
 
     cout << *this;
 
@@ -235,7 +259,7 @@ ifstream& operator>>(ifstream& ifs, File& file)
                 int64_t first = run.first * file.context.sectors;
                 first += file.context.bias;
                 if (first < 0) {
-                    cerr << "Runlist LBA negative: " << first
+                    cerr << clean << "Runlist LBA negative: " << first
                         << ". Try scanning disk device not partition or partition not a file" << endl;
                     file.error = true;
                     confirm;
@@ -271,6 +295,7 @@ ifstream& operator>>(ifstream& ifs, File& file)
                                 if (!file.done) file.error = false;
                                 return ifs;
                             }
+                            file.context.dec();
                         }
                         file.ofs.write(buffer.data(), chunk);
                     }
@@ -288,7 +313,10 @@ ifstream& operator>>(ifstream& ifs, File& file)
         if (file.context.magic && file.context.magic != file.magic & file.context.mask)
             file.valid = false;
         else if (!file.open()) return ifs;
-        else file.ofs.write(file.content, file.size);
+        else {
+            file.context.dec();
+            file.ofs.write(file.content, file.size);
+        }
     }
     else {  // empty file
         file.done = true;

@@ -107,7 +107,7 @@ struct __attribute__ ((packed)) Runlist {
             uint32_t    offset;
         };
     };
-    vector<pair<VCN, VCN>> parse(File* file) const;
+    vector<pair<VCN, VCN>> parse(File*, size_t) const;
     friend ostream& operator<<(ostream&, const Runlist*);
 };
 

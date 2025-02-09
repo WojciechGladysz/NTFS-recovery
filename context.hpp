@@ -3,6 +3,7 @@
 #include <semaphore.h>
 #include <unordered_map>
 #include <set>
+#include <mutex>
 
 using namespace std;
 using LBA = uint64_t;
@@ -11,32 +12,38 @@ using LBA = uint64_t;
 
 struct Context {
     enum class Format{ None, Year, Month, Day };
-    string          dev;    // device to scan and recover
-    string			dir;	// recovery target directory
-    LBA				first, last;
-    int64_t         bias;
-    int64_t			count, show;
-    set<string>		include, exclude;
-    union           { uint64_t magic; char cmagic; };
-    uint64_t		mask;
+    string          dev;                    // name of device to scan and recover
+    string			dir;	                // recovery target directory
+    LBA				first, last;            // device/file first, last lba to scan
+    int64_t         bias;                   // offset to partition calculated first lba
+    struct { LBA first, last; } mft;        // mft file first, last lba
+    int64_t         *count, *show;          // counters for limited output
+    set<string>		include, exclude;       // file extensions to include/exclude
+    union           { uint64_t magic; char cmagic; };   // file magic word
+    uint64_t		mask;                   // magic word mask
     bool			recover, all, force, index, recycle, extra;
-    uint            sector, sectors;
+    uint            sector, sectors;        // sector size, and sectors in cluster
     static bool     verbose, debug, confirm;
-    size_t          size;
-	uint			childs;
-    sem_t*          sem;
-    unordered_map<string, set<string>>     mime;
+    size_t          size;                   // min. size of a file to fork for processing
+	uint			childs;                 // max. no. of childs for big file processing
+    sem_t*          sem;                    // semaphore to keep the no. o childs
+    mutex*          mux;                    // mutex for counters
+    unordered_map<string, set<string>>     mime;    // file extensions parsed from /etc/mime
     void parse(const string&, set<string>&);
     Format format;
     Context();
     bool stop(LBA lba) {
-        if (!count--) return true;
+        if ((*count)-- == 0) return true;
         if (last) return !(lba < last);
         return false;
     } 
     ~Context() { sem_destroy(sem); };
     void signature(const char*);
-    void dec() { if (!--show) count = 0; }
+    void dec() {
+        lock_guard<mutex> lock(*mux);
+        (*show)--;
+        if ((*show) == 0) *count = 0;
+    }
 };
 
 ostream& operator<<(ostream&, const Context&);

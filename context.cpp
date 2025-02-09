@@ -17,8 +17,8 @@ ostream& operator<<(ostream& oss, const Context& context) {
         << "lba:" << outvar(context.first);
     if (context.last) oss << " >> " << outvar(context.last);
     oss << ", ";
-    if (context.count > 0) oss << "count:" << context.count << ", ";
-    if (context.show > 0) oss << "show:" << context.show << ", ";
+    if (*context.count > 0) oss << "count:" << *context.count << ", ";
+    if (*context.show > 0) oss << "show:" << *context.show << ", ";
     if (context.magic) {
         oss << "magic:" << hex << uppercase << 'x' << context.magic << '/';
         cerr.write(&context.cmagic, sizeof(context.magic)) << ", ";
@@ -77,15 +77,20 @@ void Context::signature(const char* key) {
     // cerr << "Magic: " << hex << magic << '/'; cerr.write(&cmagic, sizeof(magic)) << endl;
 }
 
-Context::Context(): dir("."), count(-1L), show(-1L), sector(512), sectors(8) {
-    bias = first = last = 0;
+Context::Context(): dir("."), sector(512), sectors(8) {
+    first = last = bias = mft.first = mft.last = 0;
     magic = mask = 0;
     verbose = debug = confirm = recover = all = force = index = recycle = extra = false;
     format = Context::Format::None;
     size = 1 << 24;     // 16MB
     childs = 4;
+    count = (int64_t*)mmap(NULL, sizeof(int64_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    *count = -1L;
+    show = (int64_t*)mmap(NULL, sizeof(int64_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    *show = -1L;
     sem = (sem_t*)mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     sem_init(sem, 1, 4);
+    mux = (mutex*)mmap(NULL, sizeof(mutex), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     if (dir.back() == '/') dir.pop_back();
     ifstream mime("/etc/mime.types");
     string line, type, extensions, file;

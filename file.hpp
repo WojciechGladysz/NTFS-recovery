@@ -41,6 +41,7 @@ struct File
     bool parse();
     bool empty() const;
     operator bool() const { return valid; }
+    bool setBias(const Record*) const;
     bool setPath(const Record*);
     void mapDir(const Record*, uint64_t);
     File(LBA, const Record*, struct Context&);

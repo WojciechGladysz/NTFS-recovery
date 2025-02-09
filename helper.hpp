@@ -11,7 +11,7 @@ using namespace std;
 #define outpair(first, second) dec << first << '/' << second
 #define outpaix(first, second) hex << uppercase << 'x' << first << "/x" << second << dec
 #define tab '\t'
-#define clean "\033[2K\r";
+#define clean "\033[2K\r"
 
 using LBA = uint64_t;
 

@@ -47,9 +47,9 @@ int main(int n, char** argv) {
             if (*arg == 'd') { context.dev = string(++arg); break; }
             if (*arg == 'l') { context.first = strtol(++arg, nullptr, 0); break; }
             if (*arg == 'L') { context.last = strtol(++arg, nullptr, 0); break; }
-            if (*arg == 'n') { context.count = strtol(++arg, nullptr, 0); break; }
+            if (*arg == 'n') { *context.count = strtol(++arg, nullptr, 0); break; }
             if (*arg == 'm') { context.signature(++arg); break; }
-            if (*arg == 's') { context.show = strtol(++arg, nullptr, 0); break; }
+            if (*arg == 's') { *context.show = strtol(++arg, nullptr, 0); break; }
             if (*arg == 'S') { context.size = strtol(++arg, nullptr, 0) * (1 << 20 ); break; }
             if (*arg == 'i') { context.parse(++arg, context.include); break; }
             if (*arg == 'x') { context.parse(++arg, context.exclude); break; }
@@ -141,10 +141,8 @@ Parsed arguments:
     }
 
     idev.close();
-    cerr << "\033[2K\r";
-    cerr << "Wait for child processes... ";
+    cerr << "\nWait for child processes... " << endl;
     int id;
-    while (id = wait(NULL), id > -1) cerr << id << ',';
-    cerr << "done" << endl;
+    while (id = wait(NULL), id > -1) cerr << "pid " << id << " done, ";
     return 0;
 }

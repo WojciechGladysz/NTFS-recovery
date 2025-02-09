@@ -254,8 +254,38 @@ ostream& operator<<(ostream& os, const Nonres* attr) {
         << "size: " << outvar(attr->size) << tab
         << "alloc: " << outvar(attr->alloc) << tab
         << "used: " << outvar(attr->used) << endl;
-    const auto data = reinterpret_cast<const char*>(attr) + attr->runlist;
-    os << (Runlist*)data;
+    size_t count = attr->last - attr->first + 1;
+    const auto* runlist = reinterpret_cast<const Runlist*>((char*)attr + attr->runlist);
+
+    // output runlist info
+    int64_t offset;
+    uint64_t length;
+    if (!runlist->lenSize) return os << endl;
+    os << "runlist: ";
+    os.flush();
+    bool many = false;
+    while (count && runlist->lenSize && runlist->offSize) {
+        if (runlist->lenSize > 4 || runlist->offSize > 4) {
+            cerr << "corrupted: " << outpair(runlist->offSize, runlist->lenSize) << endl;
+            confirm();
+            return os;
+        }
+        uint64_t lenMask = ((1LL<<(8*runlist->lenSize))-1LL);
+        int64_t shift = runlist->run >> (8*runlist->lenSize);
+        auto offMask = ((1LL<<(8*runlist->offSize))-1LL);
+        offset = shift & offMask;
+        length = runlist->run & (lenMask);
+        if (Context::debug && many) os << tab;
+        os << outpair(runlist->offSize, runlist->lenSize) << ':' << outpaix(offset, length) 
+            << '/' << dec << length;
+        if (ldump(runlist, runlist->lenSize + runlist->offSize + 1)) os << endl;
+        else os << tab;
+        runlist = (Runlist*)((char*)runlist + 1 + runlist->lenSize + runlist->offSize);
+        many = true;
+        count -= length;
+    }
+    if (!Context::debug) os << endl;
+
     return os;
 }
 
@@ -299,58 +329,49 @@ bool Name::parse(File* file) const {
 }
 
 ostream& operator<<(ostream& os, const Runlist* attr) {
-    uint64_t length;
-    int64_t offset;
-    if (!attr->lenSize) return os << endl;
-    os << "runlist: ";
-    os.flush();
-    bool many = false;
-    while (attr->lenSize && attr->offSize) {
-        uint64_t maskL = ((1LL<<(8*attr->lenSize))-1LL);
-        int64_t shift = attr->run >> (8*attr->lenSize);
-        auto maskO = ((1LL<<(8*attr->offSize))-1LL);
-        length = attr->run & (maskL);
-        offset = shift & maskO;
-        if (Context::debug && many) os << tab;
-        os << outpair(attr->offSize, attr->lenSize) << ':' << outpaix(offset, length);
-        if (ldump(attr, attr->lenSize + attr->offSize + 1)) os << endl;
-        else os << tab;
-        attr = (Runlist*)((char*)attr + 1 + attr->lenSize + attr->offSize);
-        many = true;
-    }
-    if (!Context::debug) os << endl;
-    return os;
+    return os << "Runlist::operator<< not implemented" << endl;
 }
 
 uint64_t Runlist::minLcn = 0xFFFFFFFFFFFFFFFF;
 uint64_t Runlist::maxLcn = 0;
 
-vector<pair<VCN, VCN>> Runlist::parse(File* file) const {
+vector<pair<VCN, VCN>> Runlist::parse(File* file, size_t count) const {
     vector<pair<VCN, VCN>> runlist;
     uint64_t length;
     int64_t offset;
-    uint64_t lcn0 = 0;
-    uint64_t lcn = 0;
+    uint64_t first = 0;
+    uint64_t last = 0;
     const Runlist* attr = this;
-    while (attr->lenSize && attr->offSize) {
+    while (count && attr->lenSize && attr->offSize) {
         if (attr->lenSize > 4 || attr->offSize > 4) {
-            if (file) file->error = false;
+            if (file) file->error = true;
+            confirm();
             return runlist;
         }
-        uint64_t maskL = ((1LL<<(8*attr->lenSize))-1LL);
+        uint64_t lenMask = ((1LL<<(8*attr->lenSize))-1LL);
         int64_t shift = attr->run >> (8*attr->lenSize);
-        auto maskO = ((1LL<<(8*attr->offSize))-1LL);
-        length = attr->run & maskL;
-        offset = shift & maskO;
+        auto offMask = ((1LL<<(8*attr->offSize))-1LL);
+        length = attr->run & lenMask;
+        offset = shift & offMask;
         if (offset & (1LL<<(8*attr->offSize-1))) offset |= (0xFFFFFFFFFFFFFFFF << (8*attr->offSize));
-        lcn0 += offset;
-        lcn = lcn0 + length;
-        if (lcn0 < minLcn) minLcn = lcn0;
-        if (lcn > maxLcn) maxLcn = lcn;
-        runlist.push_back(make_pair(lcn0, lcn));
+        first += offset;
+        last = first + length;
+        if (first < minLcn) minLcn = first;
+        if (last > maxLcn) maxLcn = last;
+        runlist.push_back(make_pair(first, last));
+        count -= last - first;
         attr = (Runlist*)((char*)attr + 1 + attr->lenSize + attr->offSize);
     }
     return runlist;
+}
+
+const Name* Attr::getName() const {
+    if (type == AttrId::FileName) return reinterpret_cast<const Name*>(static_cast<const Resident*>(this)->data);
+    else return nullptr;
+}
+
+bool Root::parse(File* file) const {
+    return header->parse(file);
 }
 
 bool Node::parse(File *file) const {
@@ -359,11 +380,6 @@ bool Node::parse(File *file) const {
     entry = getName();
     file->entries.emplace_back(index, entry);
     return true;
-}
-
-const Name* Attr::getName() const {
-    if (type == AttrId::FileName) return reinterpret_cast<const Name*>(static_cast<const Resident*>(this)->data);
-    else return nullptr;
 }
 
 bool Header::parse(File* file) const {
@@ -377,8 +393,39 @@ bool Header::parse(File* file) const {
     return true;
 }
 
-bool Root::parse(File* file) const {
-    return header->parse(file);
+const Attr* Attr::parse(File* file) const {
+    if (noRes) static_cast<const Nonres*>(this)->parse(file);
+    else static_cast<const Resident*>(this)->parse(file);
+    return getNext();
+}
+
+bool Resident::parse(File* file) const {
+    void* data = reinterpret_cast<void*>((char*)this + offset);
+    if (type == AttrId::StandardInfo) return reinterpret_cast<const Info*>(data)->parse(file);
+    else if (type == AttrId::FileName) return reinterpret_cast<const Name*>(data)->parse(file);
+    else if (type == AttrId::IndexRoot) return reinterpret_cast<const Root*>(data)->parse(file);
+    else if (type == AttrId::Data && !length) {
+        file->size = length;
+        return file->content = reinterpret_cast<char*>(data);
+    }
+    return false;
+}
+
+bool Nonres::parse(File* file) const {
+    if (!file) return false;
+    if ((type == AttrId::Data && !length)   // no alternate data stream
+            || (type == AttrId::IndexAllocation)) {
+        file->size = used & 0xFFFFFFFFFFFF;
+        file->alloc = alloc & 0xFFFFFFFFFFFF;
+        file->runlist.emplace(first, Run());
+        size_t count = last - first + 1;
+        file->runlist[first].count = count;
+        auto attr = reinterpret_cast<const Runlist*>((char*)this + runlist);
+        auto runlist = attr->parse(file, count);
+        auto& list = file->runlist[first].list;
+        list.insert(list.end(), runlist.begin(), runlist.end());
+    }
+    return true;
 }
 
 const Attr* Attr::getNext() const {
@@ -391,38 +438,3 @@ const Attr* Attr::getNext() const {
     confirm();
     return nullptr;
 }
-
-const Attr* Attr::parse(File* file) const {
-    if (noRes) static_cast<const Nonres*>(this)->parse(file);
-    else static_cast<const Resident*>(this)->parse(file);
-    return getNext();
-}
-
-bool Resident::parse(File* file) const {
-    void* data = reinterpret_cast<void*>((char*)this + offset);
-    if (type == AttrId::StandardInfo) return reinterpret_cast<const Info*>(data)->parse(file);
-    else if (type == AttrId::FileName) return reinterpret_cast<const Name*>(data)->parse(file);
-    else if (type == AttrId::IndexRoot) return reinterpret_cast<const Root*>(data)->parse(file);
-    else if (type == AttrId::Data && length) {
-        file->size = length;
-        return file->content = reinterpret_cast<char*>(data);
-    }
-    return false;
-}
-
-bool Nonres::parse(File* file) const {
-    if (!file) return false;
-    file->size = used & 0xFFFFFFFFFFFF;
-    file->alloc = alloc & 0xFFFFFFFFFFFF;
-    auto data = reinterpret_cast<const char*>(this) + runlist;
-    if ((type == AttrId::Data && !length)   // no alternate data stream
-            || (type == AttrId::IndexAllocation)) {
-        file->runlist.emplace(first, Run());
-        file->runlist[first].count = last - first;
-        auto& list = file->runlist[first].list;
-        auto runlist = reinterpret_cast<const Runlist*>(data)->parse(file);
-        list.insert(list.end(), runlist.begin(), runlist.end());
-    }
-    return true;
-}
-

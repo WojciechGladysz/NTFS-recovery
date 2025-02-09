@@ -137,7 +137,7 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
     }
 
     const Boot* boot = reinterpret_cast<Boot*>(entry.data());
-    if (*boot) {
+    if (!entry.context.recover && *boot) {
         cout << endl << hex << uppercase << 'x' << lba << tab;
         entry.context.sector = boot->sector;
         entry.context.sectors = boot->sectors;
@@ -149,7 +149,7 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
     }
 
     const Index* index = reinterpret_cast<const Index*>(entry.data());
-    if (entry.context.index && *index) {
+    if (!entry.context.recover && entry.context.index && *index) {
         entry.resize(entry.context.sector * entry.context.sectors);
         size_t more = entry.size() - entry.context.sector;
         if (!ifs.read(entry.data() + entry.context.sector, more)) {
