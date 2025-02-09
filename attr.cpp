@@ -1,6 +1,5 @@
 #include <iomanip>
 #include <cstring>
-#include <codecvt>
 #include <functional>
 #include <fstream>
 #include <filesystem>
@@ -72,7 +71,12 @@ time_t convert(const Time time) {
     return timestamp;
 }
 
-std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> converter;
+string convert16(char16_t utf16) {
+    string utf8;
+    utf8.push_back(0xC0 | ((utf16 >> 6) & 0x1F));
+    utf8.push_back(0x80 | (utf16 & 0x3F));
+    return utf8;
+}
 
 string convertName(const char16_t* start, const char16_t* stop)
 {
@@ -98,7 +102,8 @@ string convertName(const char16_t* start, const char16_t* stop)
                 name.push_back(wch->lch);
             }
         }
-        else name.append(converter.to_bytes(&wch->wch, &wch->wch + 1));
+        else if (!wch->hch && !(wch->lch & 0x80)) name.push_back(wch->lch);
+        else name.append(convert16(wch->wch));
         wch++;
     }
     return name;

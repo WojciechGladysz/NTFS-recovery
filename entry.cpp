@@ -137,29 +137,29 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
     }
 
     const Boot* boot = reinterpret_cast<Boot*>(entry.data());
-    if (!entry.context.recover && *boot) {
-        cout << endl << hex << uppercase << 'x' << lba << tab;
+    if (!entry.context.recover && entry.context.noExt() && *boot) {
+        cerr << clean << hex << uppercase << 'x' << lba << tab;
         entry.context.sector = boot->sector;
         entry.context.sectors = boot->sectors;
-        dump(lba, entry);
-        cout << boot;
+        if (dump(lba, entry)) cerr << endl << endl;
+        cerr << boot << endl;
         entry.context.dec();
         confirm();
         return ifs;
     }
 
     const Index* index = reinterpret_cast<const Index*>(entry.data());
-    if (!entry.context.recover && entry.context.index && *index) {
+    if (!entry.context.recover && entry.context.noExt() && entry.context.index && *index) {
         entry.resize(entry.context.sector * entry.context.sectors);
         size_t more = entry.size() - entry.context.sector;
         if (!ifs.read(entry.data() + entry.context.sector, more)) {
             cerr << "Device read error at: " << hex << lba << endl;
             exit(EXIT_FAILURE);
         }
-        cerr << endl << hex << uppercase << 'x' << lba << tab;
+        cerr << clean << hex << uppercase << 'x' << lba << tab;
         const Index* index = reinterpret_cast<const Index*>(entry.data());
-        if (dump(lba, entry)) cout << endl << endl;
-        cerr << index;
+        if (dump(lba, entry)) cerr << endl << endl;
+        cerr << index << endl;
         entry.context.dec();
         confirm();
         return ifs;

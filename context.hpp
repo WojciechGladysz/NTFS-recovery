@@ -44,6 +44,7 @@ struct Context {
         (*show)--;
         if ((*show) == 0) *count = 0;
     }
+    bool noExt() { return include.empty() && exclude.empty(); }
 };
 
 ostream& operator<<(ostream&, const Context&);

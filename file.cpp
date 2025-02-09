@@ -30,7 +30,7 @@ bool File::hit(const set<string>& entries, bool must) {  // return means continu
         if (hit != context.mime.end())
             if (hit->second.find(ext) != hit->second.end()) {
                 valid = must;
-                return false;
+                return true;
             }
         if (ext == extension) {
             valid = must;
