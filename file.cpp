@@ -339,25 +339,10 @@ out:
     return ifs;
 }
 
-void File::mangle() {
-    if (context.format == Context::Format::None) return;
-    tm* te;
-    te = localtime(reinterpret_cast<const time_t*>(&time));
-    ostringstream path;
-    path << '/' << te->tm_year + 1900 << '/';
-    if (context.format > Context::Format::Year) {
-        path << setfill('0') << setw(2) << (te->tm_mon + 1) << '/';
-        if (context.format > Context::Format::Month)
-            path << setfill('0')<< setw(2) << (te->tm_mday) << '/' ;
-    }
-    this->path = path.str();
-}
-
 bool File::open()
 {
     bool magic = true;
     string target(context.dir);
-    mangle();
     target.append(path);
     string full = target + name;
     if (filesystem::exists(full)) {     // if file exists...

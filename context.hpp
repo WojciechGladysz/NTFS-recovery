@@ -11,7 +11,6 @@ using LBA = uint64_t;
 // enum class Verbose { Normal, Verbose, Debug };
 
 struct Context {
-    enum class Format{ None, Year, Month, Day };
     string          dev;                    // name of device to scan and recover
     string			dir;	                // recovery target directory
     LBA				first, last;            // device/file first, last lba to scan
@@ -30,7 +29,6 @@ struct Context {
     mutex*          mux;                    // mutex for counters
     unordered_map<string, set<string>>     mime;    // file extensions parsed from /etc/mime
     void parse(const string&, set<string>&);
-    Format format;
     Context();
     bool stop(LBA lba) {
         if ((*count)-- == 0) return true;

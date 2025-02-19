@@ -18,7 +18,7 @@ ostream& operator<<(ostream& oss, const Context& context) {
     if (context.last) oss << " >> " << outvar(context.last);
     oss << ", ";
     if (*context.count > 0) oss << "count:" << *context.count << ", ";
-    if (*context.show > 0) oss << "show:" << *context.show << ", ";
+    if (*context.show > 0) oss << "process:" << *context.show << ", ";
     if (context.magic) {
         oss << "magic:" << hex << uppercase << 'x' << context.magic << '/';
         cerr.write(&context.cmagic, sizeof(context.magic)) << ", ";
@@ -33,8 +33,8 @@ ostream& operator<<(ostream& oss, const Context& context) {
         for (auto extension: context.exclude) oss << extension << ",";
         oss << ' ';
     }
-    oss << "max child processes:" << context.childs << ", ";
-    oss << "size:" << context.size / (1 << 20) << "MB, ";
+    oss << "max child:" << context.childs << ", ";
+    oss << "big file:" << context.size / (1 << 20) << "MB, ";
     if (context.verbose) {
         if (!context.debug) oss << "verbose, ";
         else oss << "debug, ";
@@ -44,12 +44,6 @@ ostream& operator<<(ostream& oss, const Context& context) {
     else if (context.extra) oss << "show dirs, ";
     if (context.index) oss << "show index entries, ";
 
-    if (context.format != Context::Format::None) {
-        oss << "path:/yyyy/";
-        if (context.format > Context::Format::Year) oss << "mm/";
-        if (context.format > Context::Format::Month) oss << "dd/";
-        oss << ", ";
-    }
     if (context.recycle) oss << "include recycle bin, ";
     oss << "pid:" << getpid() << endl;
     if (context.recover) {
@@ -81,7 +75,6 @@ Context::Context(): dir("."), sector(512), sectors(8) {
     first = last = bias = mft.first = mft.last = 0;
     magic = mask = 0;
     verbose = debug = confirm = recover = all = force = index = recycle = extra = false;
-    format = Context::Format::None;
     size = 1 << 24;     // 16MB
     childs = 4;
     count = (int64_t*)mmap(NULL, sizeof(int64_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
