@@ -23,20 +23,25 @@ int main(int n, char** argv) {
     bool help = false;
 
     Context context;
+    bool target = false;            // next argument shall be target directory
 
     for (int i = 1; i < n; i++) {
         char* arg = argv[i];
         if (*arg == '-') {
+            target = false;
             while (*++arg){
                 if (*arg == 'h') help = true;
                 else if (*arg == 'R') context.recover = true;
                 else if (*arg == 'c') context.confirm = true;
                 else if (*arg == 'a') context.all = true;
-                else if (*arg == 'I') context.extra = true;
+                else if (*arg == 'd') context.dirs = true;
                 else if (*arg == 'f') context.force = true;
                 else if (*arg == 'X') context.index = true;
                 else if (*arg == 'r') context.recycle = true;
                 else if (*arg == 'v') if (context.verbose) context.debug = true; else context.verbose = true;
+                else if (*arg == 'Y') { context.format = Context::Format::Year; continue; }
+                else if (*arg == 'M') { context.format = Context::Format::Month; continue; }
+                else if (*arg == 'D') { context.format = Context::Format::Day; continue; }
                 else if (*arg == 'l') { context.first = strtol(++arg, nullptr, 0); break; }
                 else if (*arg == 'L') { context.last = strtol(++arg, nullptr, 0); break; }
                 else if (*arg == 'n') { *context.count = strtol(++arg, nullptr, 0); break; }
@@ -45,12 +50,9 @@ int main(int n, char** argv) {
                 else if (*arg == 'S') { context.size = strtol(++arg, nullptr, 0) * (1 << 20 ); break; }
                 else if (*arg == 'i') { context.parse(++arg, context.include); break; }
                 else if (*arg == 'x') { context.parse(++arg, context.exclude); break; }
-                else if (*arg == 'o') {
-                    if (!*++arg) {
-                        cerr << "Empty output directory. Aborting" << endl;
-                        exit(EXIT_FAILURE);
-                    }
-                    context.dir = arg;
+                else if (*arg == 't') {
+                    if (!*++arg) target = true;
+                    else context.dir = arg;
                     break;
                 }
                 else if (*arg == 'p') {
@@ -61,7 +63,8 @@ int main(int n, char** argv) {
                 }
             }
         }
-        else context.dev = string(arg);
+        else if (target) context.dir = arg;
+        else context.dev = arg;
     }
 
     if (help) cout << endl << R"EOF(./recover [Options] dev
@@ -73,7 +76,7 @@ Options:
 -h      display this help message and quit, helpfull to see other argument parsed
 -l      device LBA to start the scan from, hex is ok with 0x
 -L      device LBA to stop the scan before, hex is ok with 0x
--o      recovery target directory/mount point, defaults to current directory
+-t      recovery target/output directory/mount point, defaults to current directory
 -R      recover data to target directory, otherwise dry run
 -f      overwrite target file if exists, if file size is lower than MFT entry it will be overwitten
 -n      number of entries scanned, NTFS boot sector, MFT entry or just LBA count
@@ -86,12 +89,16 @@ Options:
         mime types are OK, example: image, video
 -r      include files from recycle bin
 -v      be verbose, if repeated be more verbose with debug info
--I      show directories
+-d      show directories
+-Y      file path under target directory will be altered to /yyyy/
+-M      file path under target directory will be altered to /yyyy/mm/
+-D      file path under target directory will be altered to /yyyy/mm/dd/
+        based on file original modifaction time, useful for media files recovery
 -X      show index allocations
 -a      show all entries including invalid or skipped
--p      max number of child processes for big files recovery, see option -S
+-p      max number of child processes for big files recovery, default 4
 -S      size of file in MB to start a new thread for the file recovery, default 16MB
--c      confirm possible errors
+-c      stop to confirm
 
 Parsed arguments:
 )EOF";

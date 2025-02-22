@@ -170,7 +170,7 @@ File::File(LBA lba, const Record* record, Context& context):
 ostream& operator<<(ostream& os, const File& file) {
     if (file.done) {
         if (!file.context.all) if (!file.used || !file.valid || file.exists || file.empty()) return os;
-        if (file.dir) if (file.context.recover || !file.context.extra) return os;
+        if (file.dir) if (file.context.recover || !file.context.dirs) return os;
     }
     cerr << clean;     // just print file basic info and return to line begin
     os << hex << uppercase << 'x' << file.lba << tab << file.getType();
@@ -198,7 +198,7 @@ ostream& operator<<(ostream& os, const File& file) {
     }
     else os << "size:" << file.size << tab << "resident";
 
-    if (!file.dir || file.context.recover || !file.context.extra) return os << endl;
+    if (!file.dir || file.context.recover || !file.context.dirs) return os << endl;
     os << tab << ':';
     for (auto& entry: file.entries) {
         os << tab << entry.first;
@@ -339,10 +339,25 @@ out:
     return ifs;
 }
 
+void File::mangle() {
+    if (context.format == Context::Format::None) return;
+    tm* te;
+    te = localtime(reinterpret_cast<const time_t*>(&time));
+    ostringstream path;
+    path << '/' << te->tm_year + 1900 << '/';
+    if (context.format > Context::Format::Year) {
+        path << setfill('0') << setw(2) << (te->tm_mon + 1) << '/';
+        if (context.format > Context::Format::Month)
+            path << setfill('0')<< setw(2) << (te->tm_mday) << '/' ;
+    }
+    this->path = path.str();
+}
+
 bool File::open()
 {
     bool magic = true;
     string target(context.dir);
+    mangle();
     target.append(path);
     string full = target + name;
     if (filesystem::exists(full)) {     // if file exists...

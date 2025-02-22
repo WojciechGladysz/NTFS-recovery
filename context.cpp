@@ -41,8 +41,15 @@ ostream& operator<<(ostream& oss, const Context& context) {
     }
     if (context.confirm) oss << "confirm, ";
     if (context.all) oss << "show all, ";
-    else if (context.extra) oss << "show dirs, ";
+    else if (context.dirs) oss << "show dirs, ";
     if (context.index) oss << "show index entries, ";
+ 
+    if (context.format != Context::Format::None) {
+        oss << "path:/yyyy/";
+        if (context.format > Context::Format::Year) oss << "mm/";
+        if (context.format > Context::Format::Month) oss << "dd/";
+        oss << ", ";
+    }
 
     if (context.recycle) oss << "include recycle bin, ";
     oss << "pid:" << getpid() << endl;
@@ -74,7 +81,8 @@ void Context::signature(const char* key) {
 Context::Context(): dir("."), sector(512), sectors(8) {
     first = last = bias = mft.first = mft.last = 0;
     magic = mask = 0;
-    verbose = debug = confirm = recover = all = force = index = recycle = extra = false;
+    verbose = debug = confirm = recover = all = force = index = recycle = dirs = false;
+    format = Context::Format::None;
     size = 1 << 24;     // 16MB
     childs = 4;
     count = (int64_t*)mmap(NULL, sizeof(int64_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
