@@ -12,6 +12,7 @@ using namespace std;
 #define outpaix(first, second) hex << uppercase << 'x' << first << "/x" << second << dec
 #define tab '\t'
 #define clean "\033[2K\r"
+#define kB (1 << 20)
 
 using LBA = uint64_t;
 
