@@ -33,11 +33,11 @@ ostream& operator<<(ostream& oss, const Context& context) {
 		for (auto extension: context.exclude) oss << extension << ",";
 		oss << ' ';
 	}
-	oss << "max child:" << context.childs << ", ";
-	oss << "big file:" << context.size / (1 << 20) << "MB, ";
+	if (context.childs != 4) oss << "max child:" << context.childs << ", ";
+	if (context.size != 16 * MB) oss << "big file:" << context.size / MB << "MB, ";
 	if (context.verbose) {
-		if (!context.debug) oss << "verbose, ";
-		else oss << "debug, ";
+		if (context.debug) oss << "debug, ";
+		else oss << "verbose, ";
 	}
 	if (context.confirm) oss << "confirm, ";
 	if (context.all) oss << "show all, ";

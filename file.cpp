@@ -1,14 +1,11 @@
-#include <iostream>
 #include <filesystem>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 #include <string.h>
 #include <utime.h>
 
 #include "helper.hpp"
 #include "context.hpp"
-#include "attr.hpp"
 #include "entry.hpp"
 #include "file.hpp"
 
@@ -19,9 +16,10 @@ ostream& operator<<(ostream& os, const Time_t time) {
 	return os;
 }
 
-bool File::hit(const set<string>& entries, bool must) {  // return means continue checking
-	if (!valid) return false;           // no further checking
-	if (entries.empty()) return true;   // continue other checking
+bool File::hit(const set<string>& entries, bool must)		// return means continue checking
+{
+	if (!valid) return false;								// no further checking
+	if (entries.empty()) return true;						// continue other checking
 	valid = !must;
 	string ext = this->ext;
 	lower(ext);
@@ -153,7 +151,7 @@ File::File(LBA lba, const Record* record, Context& context):
 	if (index && valid)
 		if (lba < context.mft.first || lba >= context.mft.last)
 			setBias(record);
-	if (!index) {                                                   // this is MFT file own entry
+	if (!index) {											// this is MFT file own entry
 		if (context.verbose && runlist.empty()) {
 			cerr << "No runlist in $MFT file" << endl;
 			confirm();
@@ -172,12 +170,12 @@ ostream& operator<<(ostream& os, const File& file) {
 		if (!file.context.all) if (!file.used || !file.valid || file.exists || file.empty()) return os;
 		if (file.dir) if (file.context.recover || !file.context.dirs) return os;
 	}
-	cerr << clean;     // just print file basic info and return to line begin
+	cerr << clean;			// just print file basic info and return to line begin
 	os << hex << uppercase << 'x' << file.lba << tab << file.getType();
 	if (file.used) os<< '/' << dec << file.index << tab << file.path << file.name << tab << file.time;
 	if (!file.done) {
 		cerr.flush();
-		if (file.used && file.valid) os << "... ";     // just print file basic info and return to line begin
+		if (file.used && file.valid) os << "... ";		// just print file basic info and return to line begin
 		os.flush();
 		return os;
 	}
@@ -209,7 +207,7 @@ ostream& operator<<(ostream& os, const File& file) {
 
 void File::recover()
 {
-	cerr << *this;     // just print file basic info and return to line begin
+	cerr << *this;		// just print file basic info and return to line begin
 	if (used && valid && context.recover && size > context.size && !dir) {
 		sem_wait(context.sem);
 		pid = fork();
@@ -218,7 +216,7 @@ void File::recover()
 			cerr << "Continue in main: " << name << endl;
 			sem_post(context.sem);
 		}
-		else if (pid) {    // parent process, return
+		else if (pid) {		// parent process, return
 			int sem;
 			sem_getvalue(context.sem, &sem);
 			if (context.verbose) cerr << "New child/" << sem << ':' << pid << '/' << index << ',' << endl;
@@ -319,7 +317,8 @@ ifstream& operator>>(ifstream& ifs, File& file)
 			file.ofs.write(file.content, file.size);
 		}
 	}
-	else {  // empty file
+	else		// empty file
+	{
 		file.done = true;
 		return ifs;
 	}
@@ -361,25 +360,24 @@ bool File::open()
 	mangle();
 	target.append(path);
 	string full = target + name;
-	if (filesystem::exists(full)) {     // if file exists...
+	if (filesystem::exists(full)) {		// if file exists...
 		struct stat info;
 		stat(full.c_str(), &info);
 		if (context.verbose) cerr << "File exists: " << full;
 		if (context.magic) {
 			union {
-				uint64_t    magic;
-				char        cmagic;
+				uint64_t	magic;
+				char		cmagic;
 			} key;
 			ifstream file(full, std::ios::in | std::ios::binary);
-			if (!file.is_open()) cerr << "Can not open existing file for read magic: " << full;
+			if (!file.is_open()) cerr << "Can not open existing file to read magic: " << full;
 			file.read(&key.cmagic, sizeof(key));
 			key.magic &= context.mask;
 			if (key.magic != context.magic) magic = false;
 		}
-		if (magic && (time_t) time >= info.st_mtime && size >= info.st_size && !context.force) {   // check file size against MFT record
+		if (magic && (time_t) time >= info.st_mtime && size >= info.st_size && !context.force) {		// check file size against MFT record
 			if (context.verbose) cerr << ", and its data seems OK. Skipping" << endl;
-			done = true;
-			exists = true;
+			done = exists = true;
 			return false;
 		}
 		if (context.verbose) cerr << ", but will be overwritten" << endl;

@@ -5,7 +5,7 @@
 #include "attr.hpp"
 #include "helper.hpp"
 
-const uint8_t Boot::jmp[] = {0xeb, 0x52, 0x90};
+const uint8_t Boot::jmp[] = {0xEB, 0x52, 0x90};
 
 Boot::operator bool() const {
 	return !memcmp(jmpCode, jmp, 3)
@@ -29,7 +29,7 @@ ostream& operator<<(ostream& os, const Boot* boot) {
 		<< "heads: " << outchar(boot->heads) << endl
 		<< "hidden: " << outvar(boot->hidden) << endl
 		<< "total: " << outvar(boot->total) << tab << (total/(1LL<<30)) << "G" << endl
-		<< "start: " << outvar(boot->start) << endl
+		<< "MFT: " << outvar(boot->start) << endl
 		<< "mirror: " << outvar(boot->mirror) << endl
 		<< "size: " << outvar(boot->getSize()) << endl
 		<< "record: " << outchar(boot->record) << endl
@@ -71,7 +71,7 @@ uint64_t Record::getParent(string& name) const {
 
 const Name* Record::getName() const {
 	auto* attr = reinterpret_cast<const Attr*>((char*)this + this->attr); // pointer to record first attribute
-	const Name* result = nullptr;   // pointer to first FileName attribute data with preferred name space
+	const Name* result = nullptr;		// pointer to first FileName attribute data with preferred name space
 	while (attr) {
 		auto* name = attr->getName();
 		if (name) {

@@ -1,14 +1,5 @@
 #include <iostream>
-#include <fstream>
-#include <filesystem>
-#include <vector>
-#include <list>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/mman.h>
-#include <cctype>
 #include <cstring>
-#include <cstdlib>
 #include <sys/wait.h>
 
 #include "helper.hpp"
@@ -67,10 +58,10 @@ int main(int n, char** argv) {
 		else context.dev = arg;
 	}
 
-	if (help) cout << endl << R"EOF(./recover [Options] dev
+	if (help) cout << endl << argv[0] << R"EOF( [Options] dev
 
 Paremeter:
-dev		device file or file to open, example: /dev/sdc, /dev/sdd1, ./$MFT
+dev		device/partition/file to open, example: /dev/sdc, /dev/sdd1, ./$MFT
 
 Options:
 -h		display this help message and quit, helpfull to see other argument parsed
@@ -82,12 +73,12 @@ Options:
 -n		number of entries scanned, NTFS boot sector, MFT entry or just LBA count
 -s		number of entries to process/show
 -m		magic word to search at the beggining of a file to recover, hex is ok with 0x
-		max 8 bytes, effective bytes until most significant not 0
+		max 8 bytes, effective bytes until most significant not null
 -i		allow files with extensions separated with comma (no spaces),
-		mime types are OK, example: image, video
+		mime types are OK, example: image, video, audio
 -x		exclude files with extensions separated with comma (no spaces)
 		mime types are OK, example: image, video
--r		include files from recycle bin
+-r		recover files from recycle bin
 -v		be verbose, if repeated be more verbose with debug info
 -d		show directories
 -Y		file path under target directory will be altered to /yyyy/
@@ -98,7 +89,7 @@ Options:
 -a		show all entries including invalid or skipped
 -p		max number of child processes for big files recovery, default 4
 -S		size of file in MB to start a new thread for the file recovery, default 16MB
--c		stop to confirm
+-c		stop to confirm some actions
 
 Parsed arguments:
 )EOF";

@@ -78,7 +78,7 @@ string convert16(char16_t utf16) {
 	return utf8;
 }
 
-string convertName(const char16_t* start, const char16_t* stop)
+string fixName(const char16_t* start, const char16_t* stop)
 {
 	string name;
 	union __attribute__ ((packed)) chrs{
@@ -215,7 +215,7 @@ ostream& operator<<(ostream& os, const Attr* attr) {
 	if (attr->length) { // attribute yield alternate data stream
 		const char16_t* w_name = reinterpret_cast<const char16_t*>((char*)attr + attr->offset);
 		os << "Attribute/" << outpair((uint)attr->length, attr->offset)
-			<< ": " <<  convertName(w_name, w_name + attr->length) << tab;
+			<< ": " <<  fixName(w_name, w_name + attr->length) << tab;
 		if (ldump(w_name, sizeof(*w_name) * attr->length)) os << endl;
 		else os << tab;
 	}
@@ -303,13 +303,13 @@ bool Info::parse(File* file) const {
 string Node::getName() const {
 	string name;
 	const char16_t* end = reinterpret_cast<const char16_t*>(cdata + this->end);
-	try { name = convertName(this->name, end); }
+	try { name = fixName(this->name, end); }
 	catch (...) { name = "N/A"; }
 	return name;
 }
 
 string Name::getName() const {
-	return convertName(data, data + length);
+	return fixName(data, data + length);
 }
 
 bool Name::parse(File* file) const {
