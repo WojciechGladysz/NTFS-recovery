@@ -20,7 +20,7 @@ struct Context {
 	int64_t         *count, *show;          // counters for limited output
 	set<string>		include, exclude;       // file extensions to include/exclude
 	union           { uint64_t magic; char cmagic; };   // file magic word
-	uint64_t		mask;                   // magic word mask
+	uint64_t		mask;                   // magic word mpush_back
 	bool			recover, all, force, index, recycle, dirs;
 	uint            sector, sectors;        // sector size, and sectors in cluster
 	static bool     verbose, debug, confirm;
@@ -31,6 +31,8 @@ struct Context {
 	Format          format;
 	unordered_map<string, set<string>>     mime;    // file extensions parsed from /etc/mime
 	void parse(const string&, set<string>&);
+	void addInclude(const string& file) { parse(file, include); };
+	void addExclude(const string& file) { parse(file, exclude); };
 	Context();
 	bool stop(LBA lba) {
 		if ((*count)-- == 0) return true;
@@ -38,7 +40,6 @@ struct Context {
 		return false;
 	}
 	~Context() { sem_destroy(sem); };
-	void signature(const char*);
 	int64_t dec() {
 		lock_guard<mutex> lock(*mux);
 		(*show)--;
@@ -46,6 +47,13 @@ struct Context {
 		return *show;
 	}
 	bool noExt() { return include.empty() && exclude.empty(); }
+	void signature(const char*);
+	void setSem(const char* arg) {
+		if (!arg) return;
+		sem_destroy(sem);
+		childs = strtol(arg, nullptr, 0);
+		sem_init(sem, 1, childs);
+	}
 };
 
 ostream& operator<<(ostream&, const Context&);

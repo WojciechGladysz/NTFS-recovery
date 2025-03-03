@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <cstring>
+#include <thread>
 
 #include "helper.hpp"
 #include "context.hpp"
@@ -14,7 +15,7 @@ bool Context::confirm = false;
 
 ostream& operator<<(ostream& oss, const Context& context) {
 	oss << "Device:" << context.dev << ", "
-		<< "lba:" << outvar(context.first);
+		<< "LBA:" << outvar(context.first);
 	if (context.last) oss << " >> " << outvar(context.last);
 	oss << ", ";
 	if (*context.count > 0) oss << "count:" << *context.count << ", ";
@@ -24,17 +25,17 @@ ostream& operator<<(ostream& oss, const Context& context) {
 		cerr.write(&context.cmagic, sizeof(context.magic)) << ", ";
 	}
 	if (!context.include.empty()) {
-		oss << "include:";
+		oss << "include[";
 		for (auto extension: context.include) oss << extension << ",";
-		oss << ' ';
+		oss << "\b] ";
 	}
 	if (!context.exclude.empty()) {
-		oss << "exclude:";
+		oss << "exclude[";
 		for (auto extension: context.exclude) oss << extension << ",";
-		oss << ' ';
+		oss << "\b] ";
 	}
-	if (context.childs != 4) oss << "max child:" << context.childs << ", ";
-	if (context.size != 16 * MB) oss << "big file:" << context.size / MB << "MB, ";
+	if (context.childs != thread::hardware_concurrency()) oss << "child:" << context.childs << ", ";
+	if (context.size != 16) oss << "big:" << dec << context.size << "MB, ";
 	if (context.verbose) {
 		if (context.debug) oss << "debug, ";
 		else oss << "verbose, ";
@@ -58,7 +59,7 @@ ostream& operator<<(ostream& oss, const Context& context) {
 		if (context.force) oss << ", overwrite existing files";
 		oss << endl;
 	}
-	if (context.last && context.first > context.last) cerr << "End lba lower that start lba" << endl;
+	if (context.last && context.first > context.last) cerr << "End LBA lower that start LBA" << endl;
 	if (context.recover) {
 		cerr << endl << "\tPress enter to confirm...";
 		cin.get();
@@ -70,12 +71,11 @@ void Context::signature(const char* key) {
 	magic = strtoll(key, nullptr, 0);
 	if (!magic) strncpy((char*)&magic, key, sizeof(magic));
 	uint64_t temp = magic;
+	mask = 0;
 	while (temp) {
 		mask =  (mask << 8) + 0xFF;
-		temp = temp/0x100;
+		temp >>= 8;
 	}
-	magic &= mask;
-	// cerr << "Magic: " << hex << magic << '/'; cerr.write(&cmagic, sizeof(magic)) << endl;
 }
 
 Context::Context(): dir("."), sector(512), sectors(8) {
@@ -83,8 +83,8 @@ Context::Context(): dir("."), sector(512), sectors(8) {
 	magic = mask = 0;
 	verbose = debug = confirm = recover = all = force = index = recycle = dirs = false;
 	format = Context::Format::None;
-	size = 1 << 24;     // 16MB
-	childs = 4;
+	size = 16;     // 16MB
+	childs = thread::hardware_concurrency()?:4;
 	count = (int64_t*)mmap(NULL, sizeof(int64_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 	*count = -1L;
 	show = (int64_t*)mmap(NULL, sizeof(int64_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);

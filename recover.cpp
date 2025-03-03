@@ -1,6 +1,8 @@
 #include <iostream>
 #include <cstring>
 #include <sys/wait.h>
+#include <variant>
+#include <functional>
 
 #include "helper.hpp"
 #include "context.hpp"
@@ -14,13 +16,26 @@ int main(int n, char** argv) {
 	bool help = false;
 
 	Context context;
-	bool pend = false;				// next argument shall be target directory
+	using options = variant<monostate, LBA*, int64_t*, string*, function<void(Context*, const char*)>>;
+	options option = monostate{};
+
+	auto set = [&context](options& option, const char* arg) -> bool {	// return value means data consumed
+		if (!*arg) return false;
+		else if (auto param = get_if<monostate>(&option)) return false;
+		else if (auto param = get_if<LBA*>(&option)) **param = strtol(arg, nullptr, 0);
+		else if (auto param = get_if<int64_t*>(&option)) **param = strtol(arg, nullptr, 0);
+		else if (auto param = get_if<string*>(&option)) **param = arg;
+		else if (auto param = get_if<function<void(Context*,const char*)>>(&option)) (*param)(&context, arg);
+		option = monostate{};
+		return true;
+	};
 
 	for (int i = 1; i < n; i++) {
 		char* arg = argv[i];
 		if (*arg == '-') {
-			pend = false;
+			option = monostate{};
 			while (*++arg){
+				// no parametar options
 				if (*arg == 'h') help = true;
 				else if (*arg == 'R') context.recover = true;
 				else if (*arg == 'c') context.confirm = true;
@@ -32,36 +47,29 @@ int main(int n, char** argv) {
 				else if (*arg == 'Y') context.format = Context::Format::Year;
 				else if (*arg == 'M') context.format = Context::Format::Month;
 				else if (*arg == 'D') context.format = Context::Format::Day;
+				// options with parameter
+				else if (*arg == 'l') option = &context.first;
+				else if (*arg == 'L') option = &context.last;
+				else if (*arg == 'n') option = context.count;
+				else if (*arg == 's') option = context.show;
+				else if (*arg == 'S') option = &context.size;
+				else if (*arg == 'm') option = &Context::signature;
+				else if (*arg == 'i') option = &Context::addInclude;
+				else if (*arg == 'x') option = &Context::addExclude;
+				else if (*arg == 't') option = &context.dir;
 				else if (*arg == 'v') if (context.verbose) context.debug = true; else context.verbose = true;
-				else if (*arg == 'l') { context.first = strtol(++arg, nullptr, 0); break; }
-				else if (*arg == 'L') { context.last = strtol(++arg, nullptr, 0); break; }
-				else if (*arg == 'n') { *context.count = strtol(++arg, nullptr, 0); break; }
-				else if (*arg == 'm') { context.signature(++arg); break; }
-				else if (*arg == 's') { *context.show = strtol(++arg, nullptr, 0); break; }
-				else if (*arg == 'S') { context.size = strtol(++arg, nullptr, 0) * kB; break; }
-				else if (*arg == 'i') { context.parse(++arg, context.include); break; }
-				else if (*arg == 'x') { context.parse(++arg, context.exclude); break; }
-				else if (*arg == 't') {
-					if (!*++arg) pend = true;
-					else context.dir = arg;
-					break;
-				}
-				else if (*arg == 'p') {
-					sem_destroy(context.sem);
-					context.childs = strtol(++arg, nullptr, 0);
-					sem_init(context.sem, 1, context.childs);
-					break;
-				}
+				else if (*arg == 'p') option = &Context::setSem;
+				if (set(option, arg + 1)) break;
 			}
 		}
-		else if (pend) context.dir = arg;
+		else if (option.index()) set(option, arg);
 		else context.dev = arg;
 	}
 
-	if (help) cout << endl << argv[0] << R"EOF( [Options] dev
+	if (help) cout << endl << argv[0] << R"EOF( [Options] DEV
 
 Paremeter:
-dev		device/partition/file to open, example: /dev/sdc, /dev/sdd1, ./$MFT
+DEV		device/partition/image/file to open, example: /dev/sdc, /dev/sdd1, ./$MFT
 
 Options:
 -h		display this help message and quit, helpfull to see other argument parsed
@@ -87,7 +95,7 @@ Options:
 		based on file original modifaction time, useful for media files recovery
 -X		show index allocations
 -a		show all entries including invalid or skipped
--p		max number of child processes for big files recovery, default 4
+-p		max number of child processes for big files recovery, defaults to hardware capability
 -S		size of file in MB to start a new thread for the file recovery, default 16MB
 -c		stop to confirm some actions
 

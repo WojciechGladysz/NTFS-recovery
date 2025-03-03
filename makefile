@@ -8,14 +8,14 @@ OBJ = $(SRC:%.cpp=%.o)
 
 all: ntfs.recover
 
-debug: CFLAGS = -ggdb3 -o0
-debug: all
-
 ntfs.recover: $(OBJ)
 	$(CC) $^ -o $@
 
-%.o: %.cpp %.hpp $(INC)
+%.o: %.cpp $(INC)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+debug: CFLAGS = -ggdb3 -o0
+debug: all
 
 clean: 
 	rm *.o ntfs.recover
