@@ -69,47 +69,51 @@ int main(int n, char** argv) {
 	if (help) cout << endl << argv[0] << R"EOF( [Options] DEV
 
 Paremeter:
-DEV		device/partition/image/file to open, example: /dev/sdc, /dev/sdd1, ./$MFT
+DEV	device/partition/image/file to open, example: /dev/sdc, /dev/sdd1, ./$MFT
 
-Options:
--h		display this help message and quit, helpfull to see other argument parsed
--l		device LBA to start the scan from, hex is ok with 0x
--L		device LBA to stop the scan before, hex is ok with 0x
--t		recovery target/output directory/mount point, defaults to current directory
--R		recover data to target directory, otherwise dry run
--f		overwrite target file if exists, if file size is lower than MFT entry it will be overwitten
--n		number of entries scanned, NTFS boot sector, MFT entry or just LBA count
--s		number of entries to process/show
--m		magic word to search at the beggining of a file to recover, hex is ok with 0x
-		max 8 bytes, effective bytes until most significant not null
--i		allow files with extensions separated with comma (no spaces),
-		mime types are OK, example: image, video, audio
--x		exclude files with extensions separated with comma (no spaces)
-		mime types are OK, example: image, video
--r		recover files from recycle bin
--v		be verbose, if repeated be more verbose with debug info
--d		show directories
--Y		file path under target directory will be altered to /yyyy/
--M		file path under target directory will be altered to /yyyy/mm/
--D		file path under target directory will be altered to /yyyy/mm/dd/
-		based on file original modifaction time, useful for media files recovery
--X		show index allocations
--a		show all entries including invalid or skipped
--p		max number of child processes for big files recovery, defaults to hardware capability
--S		size of file in MB to start a new thread for the file recovery, default 16MB
--c		stop to confirm some actions
+Options: space after option letter may be omitted, parameters are consumed until next space
+-h	display this help message and quit, helpfull to see other argument parsed
+-l lba	device LBA to start the scan from, hex is ok with 0x
+-L lba	device LBA to stop the scan before, hex is ok with 0x
+-t dir	recovery target/output directory/mount point, defaults to current directory
+-R	recover data to target directory, otherwise dry run
+-f	overwrite target file if exists, files may get overwritten anyway
+-n N	number of entries scanned, NTFS boot sector, MFT entry or just LBA count
+-s N	number of entries to process
+-m nnn	magic word to search at the beggining of a file to recover, text or hex (with 0x)
+	max 8 bytes, effective bytes until most significant not null
+-i x,y	allow files with extensions separated by comma (no spaces),
+	mime types are OK, example: image, video, audio
+-x x,y	exclude files with extensions separated with comma (no spaces)
+	mime types are OK, example: image, video
+-r	recover files from recycle bin
+-v	be verbose, if repeated be more verbose with debug info
+-d	show directories
+-Y	file path under target directory will be altered to /yyyy/
+-M	file path under target directory will be altered to /yyyy/mm/
+-D	file path under target directory will be altered to /yyyy/mm/dd/
+	based on file original modifaction time, useful for media files recovery
+-X	show index allocations
+-a	show all entries including invalid or skipped otherwise
+-p N	max number of child processes for big file recovery, defaults to hardware capability
+-S nn	size of a file in MB to start a new thread for the file recovery, default 16MB
+-c	stop to confirm some actions
+
+Example:
+	ntfs.recovery /dev/sdb -R
+	ntfs.recovery /dev/sdc1 -t recovery -R
 
 Parsed arguments:
 )EOF";
 
-		cerr << context;
+	if (context.dev.empty()) {
+		cerr << "Give device/file name. For example /dev/sdb, /dev/sdc2" << endl;
+		exit(EXIT_SUCCESS);
+	}
+
+	cerr << context;
 
 	if (help) exit(EXIT_SUCCESS);
-
-	if (context.dev.empty()) {
-		cerr << "Device name not provided. Aborting" << endl;
-		exit(EXIT_FAILURE);
-	}
 
 	ifstream idev(context.dev, ios::in | ios::binary);
 	if (!idev.is_open()) {
@@ -118,23 +122,22 @@ Parsed arguments:
 		exit(EXIT_FAILURE);
 	}
 
-	// scan for NTFS boot sector and MFT entries
-	cerr << "Searching for MFT entries...\n" << endl;
-
 	LBA lba = context.first;
-
 	if (!idev.seekg(lba * context.sector)) {
 		cerr << "Device error: " << context.dev << endl
 			<< "Error: " << strerror(errno) << endl;
 		exit(EXIT_FAILURE);
 	}
 
+	// scan for NTFS boot sector and MFT entries
+	cerr << "Searching for MFT entries...\n" << endl;
+
 	while (idev) {
 		lba = idev.tellg() / context.sector;
 		if (context.stop(lba)) break;
 		Entry entry(context);
 		idev >> entry;
-		if (!entry.record()) continue;
+		if (!*entry.record()) continue;
 		File file(lba, entry.record(), context);
 		file.recover();
 		waitpid(-1, NULL, WNOHANG);

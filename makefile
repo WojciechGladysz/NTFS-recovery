@@ -11,7 +11,7 @@ all: ntfs.recover
 ntfs.recover: $(OBJ)
 	$(CC) $^ -o $@
 
-%.o: %.cpp $(INC)
+%.o: %.cpp %.hpp $(INC)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 debug: CFLAGS = -ggdb3 -o0

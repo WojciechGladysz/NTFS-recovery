@@ -9,7 +9,10 @@
 #include "entry.hpp"
 #include "file.hpp"
 
+#include <vector>
 unordered_map<uint64_t, pair<string, uint64_t>> File::dirs;
+
+using namespace std;
 
 ostream& operator<<(ostream& os, const Time_t time) {
 	os << std::put_time(std::localtime(reinterpret_cast<const time_t*>(&time)), "%Y.%m.%d %H:%M:%S");
@@ -182,8 +185,8 @@ ostream& operator<<(ostream& os, const File& file) {
 	os << tab;
 	if (!file.content) {
 		if (file.size) {
-			os << "size:" << (file.size > 1024? file.size/1024: file.size);
-			if (file.size > 1024) os << 'k';
+			os << "size:" << (file.size > kB? file.size/kB: file.size);
+			if (file.size > kB) os << 'k';
 			if (!file.runlist.empty())
 				for (auto entry: file.runlist) {
 					os << tab << entry.second.count << ':';
@@ -208,13 +211,13 @@ ostream& operator<<(ostream& os, const File& file) {
 void File::recover()
 {
 	cerr << *this;		// just print file basic info and return to line begin
-	if (used && valid && context.recover && size > context.size && !dir) {
+	if (used && valid && context.recover && size > context.size * MB && !dir) {
 		sem_wait(context.sem);
 		pid = fork();
 		if (pid < 0) {
+			sem_post(context.sem);
 			cerr << "Failed to create read process, error: " << strerror(errno) << endl;
 			cerr << "Continue in main: " << name << endl;
-			sem_post(context.sem);
 		}
 		else if (pid) {		// parent process, return
 			int sem;
@@ -260,7 +263,7 @@ ifstream& operator>>(ifstream& ifs, File& file)
 					cerr << clean << "Runlist LBA negative: " << first
 						<< ". Try scanning disk device not partition or partition not a file" << endl;
 					file.error = true;
-					confirm;
+					confirm();
 					return ifs;
 				}
 				if (!ifs.seekg(first * file.context.sector))
@@ -309,7 +312,7 @@ ifstream& operator>>(ifstream& ifs, File& file)
 			}
 	else if(file.content) {
 		file.magic = *reinterpret_cast<const uint16_t*>(file.content);
-		if (file.context.magic && file.context.magic != file.magic & file.context.mask)
+		if (file.context.magic && file.context.magic != (file.magic & file.context.mask))
 			file.valid = false;
 		else if (!file.open()) return ifs;
 		else {
@@ -341,8 +344,7 @@ out:
 
 void File::mangle() {
 	if (context.format == Context::Format::None) return;
-	tm* te;
-	te = localtime(reinterpret_cast<const time_t*>(&time));
+	tm* te = localtime(reinterpret_cast<const time_t*>(&time));
 	ostringstream path;
 	path << '/' << te->tm_year + 1900 << '/';
 	if (context.format > Context::Format::Year) {

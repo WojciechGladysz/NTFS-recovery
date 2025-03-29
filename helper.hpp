@@ -1,9 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <vector>
-
-using namespace std;
 
 #define outchar(data) dec << static_cast<uint16_t>(data) << 'x' << hex << uppercase << static_cast<uint16_t>(data) << dec
 #define outvar(data) dec << data << 'x' << hex << uppercase << data << dec
@@ -19,6 +18,6 @@ using LBA = uint64_t;
 
 bool ldump(const void*, uint, uint = 0);
 bool pdump(const void*, const void*);
-bool dump(LBA, const vector<char>&);
+bool dump(LBA, const std::vector<char>&);
 void confirm();
-string& lower(string&);
+std::string& lower(std::string&);

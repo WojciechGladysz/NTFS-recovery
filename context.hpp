@@ -1,6 +1,6 @@
 #pragma once
-#include <fstream>
 #include <semaphore.h>
+#include <string>
 #include <unordered_map>
 #include <set>
 #include <mutex>
@@ -26,7 +26,7 @@ struct Context {
 	static bool     verbose, debug, confirm;
 	size_t          size;                   // min. size of a file to fork for processing
 	uint			childs;                 // max. no. of childs for big file processing
-	sem_t*          sem;                    // semaphore to keep the no. o childs
+	sem_t*          sem;                    // semaphore to keep the no. of childs
 	mutex*          mux;                    // mutex for counters
 	Format          format;
 	unordered_map<string, set<string>>     mime;    // file extensions parsed from /etc/mime

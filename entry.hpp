@@ -4,8 +4,6 @@
 
 #include "attr.hpp"
 
-using namespace std;
-
 class Context;
 
 struct __attribute__ ((packed)) Boot {
@@ -81,7 +79,7 @@ struct __attribute__ ((packed)) Record {
 	operator bool() const;
 };
 
-class Entry:vector<char> {
+class Entry:std::vector<char> {
 	Context& context;
 	public:
 	Entry(Context&);
