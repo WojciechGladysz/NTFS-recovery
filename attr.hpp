@@ -1,7 +1,6 @@
 #pragma once
 #include <iostream>
 #include <ctime>
-#include <thread>
 #include <cstdint>
 
 #include <string>
@@ -81,6 +80,7 @@ struct __attribute__ ((packed)) Header {
 	uint8_t     padding[3];
 
 	Node        node[];
+
 	bool        parse(File*) const;
 	friend ostream& operator<<(ostream&, const Header*);
 };

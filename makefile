@@ -1,4 +1,4 @@
-CC = g++
+CC = clang++
 CFLAGS = -o2
 SRC = context.cpp helper.cpp attr.cpp entry.cpp file.cpp recover.cpp
 INC = context.hpp helper.hpp

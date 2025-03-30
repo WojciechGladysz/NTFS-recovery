@@ -82,7 +82,7 @@ Options: space after option letter may be omitted, parameters are consumed until
 -s N	number of entries to process
 -m nnn	magic word to search at the beggining of a file to recover, text or hex (with 0x)
 	max 8 bytes, effective bytes until most significant not null
--i x,y	allow files with extensions separated by comma (no spaces),
+-i x,y	allow files with extensions separated with comma (no spaces),
 	mime types are OK, example: image, video, audio
 -x x,y	exclude files with extensions separated with comma (no spaces)
 	mime types are OK, example: image, video
@@ -96,7 +96,7 @@ Options: space after option letter may be omitted, parameters are consumed until
 -X	show index allocations
 -a	show all entries including invalid or skipped otherwise
 -p N	max number of child processes for big file recovery, defaults to hardware capability
--S nn	size of a file in MB to start a new thread for the file recovery, default 16MB
+-S N	size of a file in MB to start a new thread for the file recovery, default 16MB
 -c	stop to confirm some actions
 
 Example:

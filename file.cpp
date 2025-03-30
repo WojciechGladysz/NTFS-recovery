@@ -169,9 +169,9 @@ File::File(LBA lba, const Record* record, Context& context):
 }
 
 ostream& operator<<(ostream& os, const File& file) {
-	if (file.done) {
-		if (!file.context.all) if (!file.used || !file.valid || file.exists || file.empty()) return os;
-		if (file.dir) if (file.context.recover || !file.context.dirs) return os;
+	if (file.done && !file.context.all) {
+		if (file.dir) { if (file.context.recover || !file.context.dirs) return os; }
+		else if (!file.used || !file.valid || file.exists || file.empty()) return os;
 	}
 	cerr << clean;			// just print file basic info and return to line begin
 	os << hex << uppercase << 'x' << file.lba << tab << file.getType();

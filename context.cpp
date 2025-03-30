@@ -44,7 +44,7 @@ ostream& operator<<(ostream& oss, const Context& context) {
 	if (context.confirm) oss << "confirm, ";
 	if (context.all) oss << "show all, ";
 	else if (context.dirs) oss << "show dirs, ";
-	if (context.index) oss << "show index entries, ";
+	if (context.index) oss << "show indx, ";
 
 	if (context.format != Context::Format::None) {
 		oss << "path:/yyyy/";
@@ -86,14 +86,14 @@ Context::Context(): dir("."), sector(512), sectors(8) {
 	format = Context::Format::None;
 	size = 16;     // 16MB
 	childs = thread::hardware_concurrency()?:4;
+	mux = (mutex*)mmap(NULL, sizeof(mutex), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 	count = (int64_t*)mmap(NULL, sizeof(int64_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-	*count = -1L;
 	show = (int64_t*)mmap(NULL, sizeof(int64_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-	*show = -1L;
 	sem = (sem_t*)mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 	sem_init(sem, 1, 4);
-	mux = (mutex*)mmap(NULL, sizeof(mutex), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-	if (dir.back() == '/') dir.pop_back();
+	*count = -1L;
+	*show = -1L;
+	while (dir.back() == '/') dir.pop_back();
 	ifstream mime("/etc/mime.types");
 	string line, type, extensions, file;
 	if (mime.is_open())

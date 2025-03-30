@@ -44,13 +44,14 @@ Index::operator bool() const {
 ostream& operator<<(ostream& os, const Index* index)
 {
 	os << "indx/" << index->vnc << tab;
-	if (pdump(index, index->header)) os << endl;
-	os << "fixup: " << outvar(index->fixup) << tab
-		<< "entries: " << outvar(index->entries) << tab
-		<< "log sequence: " << outvar(index->logSeq) << tab
-		<< "vnc: " << outvar(index->vnc) << endl
-		<< index->header;
-	return os << endl;
+	if (Context::verbose) {
+		if (pdump(index, index->header)) os << endl;
+		os << "fixup: " << outvar(index->fixup) << tab
+			<< "entries: " << outvar(index->entries) << tab
+			<< "log sequence: " << outvar(index->logSeq) << tab
+			<< "vnc: " << outvar(index->vnc) << endl;
+	}
+	return os << index->header;
 }
 
 Record::operator bool() const {
@@ -149,7 +150,8 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
 	}
 
 	const Index* index = reinterpret_cast<const Index*>(entry.data());
-	if (!entry.context.recover && entry.context.noExt() && entry.context.index && *index) {
+	// if (!entry.context.recover && entry.context.noExt() && entry.context.index && *index) {
+	if (!entry.context.recover && entry.context.index && *index) {
 		entry.resize(entry.context.sector * entry.context.sectors);
 		size_t more = entry.size() - entry.context.sector;
 		if (!ifs.read(entry.data() + entry.context.sector, more)) {
@@ -195,8 +197,7 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
 		}
 	}
 
-	auto size = record->size;
-	entry.resize(size);
+	entry.resize(record->size);
 	if (dump(lba, entry)) cout << endl;
 	if (entry.context.verbose) {
 		record = reinterpret_cast<Record*>(entry.data());

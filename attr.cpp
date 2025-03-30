@@ -1,9 +1,5 @@
 #include <iomanip>
 #include <cstring>
-#include <functional>
-#include <fstream>
-#include <filesystem>
-#include <stdexcept>
 #include <utime.h>
 #include <unistd.h>
 #include <cerrno>
@@ -26,7 +22,7 @@ using namespace std;
 static unordered_map<string, set<string>> mime;
 static set<string> exts;
 
-enum class AttrId: __attribute__ ((packed)) uint32_t
+enum class AttrId: uint32_t
 {
 	StandardInfo = 0x10,
 	AttributeList = 0x20,
@@ -163,14 +159,13 @@ ostream& operator<<(ostream& os, const Node* attr) {
 			<< "size:" << outvar(attr->size) << tab
 			<< "name end: " << outvar(attr->end) << tab
 			<< "flags: " << outchar(attr->flags);
-		if (attr->flags & SUB) os << "/SUB";
 		if (attr->flags & LAST) os << "/LAST";
+		if (attr->flags & SUB)
+			os << "/SUB" << '/' << *reinterpret_cast<VCN*>((char*)attr + attr->size - 8);
 		os << endl;
 	}
 	if (!(attr->flags & LAST)) {
 		os << dec << attr->index << '/' << attr->getName();
-		if (attr->flags & SUB)
-			os << '-' << *reinterpret_cast<VCN*>((char*)attr + attr->size - 8);
 		if (Context::debug) os << endl;
 		else os << tab;
 	}
@@ -179,14 +174,16 @@ ostream& operator<<(ostream& os, const Node* attr) {
 }
 
 ostream& operator<<(ostream& os, const Header* attr) {
-	os << "Header: ";
-	if (pdump(attr, attr->node)) os << endl;
-	os << "offset: " << outvar(attr->offset) << tab
-		<< "size: " << outvar(attr->size) << tab
-		<< "allocated: " << outvar(attr->allocated) << tab
-		<< "flags: " << outchar(attr->flags);
-	if (attr->flags & LARGE) os << "/LARGE";
-	os << endl;
+	if (Context::verbose) {
+		os << "Header: ";
+		if (pdump(attr, attr->node)) os << endl;
+		os << "offset: " << outvar(attr->offset) << tab
+			<< "size: " << outvar(attr->size) << tab
+			<< "allocated: " << outvar(attr->allocated) << tab
+			<< "flags: " << outchar(attr->flags);
+		if (attr->flags & LARGE) os << "/LARGE";
+		os << endl;
+	}
 	const Node* last = reinterpret_cast<const Node*>((char*)attr + attr->size);
 	const Node* node = reinterpret_cast<const Node*>((char*)attr + attr->offset);
 	while (node < last) {

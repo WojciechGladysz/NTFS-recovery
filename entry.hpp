@@ -32,6 +32,7 @@ struct __attribute__ ((packed)) Boot {
 	uint16_t	serial;
 	uint8_t		unused3[438];
 	uint16_t	endTag;
+
 	operator bool() const;
 	uint32_t getSize() const;
 };
