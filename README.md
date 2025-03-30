@@ -7,7 +7,7 @@ Checkout and run make.
 
 For help run: ./ntfs.recover -h
 
-To recover files from /dev/sdx to current folder run:
+To recover files from /dev/sdx (no partition required) to current folder run:
 
 ./ntfs.recover /dev/sdx -R
 
