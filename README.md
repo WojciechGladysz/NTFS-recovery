@@ -1,21 +1,17 @@
-A linux tool to recover files from NTFS partition.
-
+A linux tool to recover files from NTFS partition.\
 Opens device file, partition file or just a file like image in read only mode.
 
-Run git clone git@github.com:Kontra2B/NTFS-recovery.git
-cd to NTFS-recovery and run make.
+To build run `git clone git@github.com:Kontra2B/NTFS-recovery.git`\
+Enter checked folder with `cd NTFS-recovery` and run `make`.
 
-For help run: ./ntfs.recover -h
-
-To recover files from /dev/sdx (no partition required) to current folder run:
-
-./ntfs.recover /dev/sdx -R
-
+For help run: `./ntfs.recover -h`\
+To recover files from /dev/sdx (no partition required) to current folder run: `./ntfs.recover /dev/sdx -R`\
 Example of 10 pictures recovery and console output:
 
-> ./ntfs.recover -R -iimage -t recovered -s10 -l0x612345 /dev/sdb1
+`> ./ntfs.recover -R -i image -t recovered -s10 -l0x601234 /dev/sdb1`
+```
 Parsed arguments:
-Device:/dev/sdb1, LBA:6366021x612345, process:10, include[image] pid:113919
+Device:/dev/sdb1, LBA:6296116x601234, process:10, include[image] pid:117565
 RECOVER to target dir: recovered
 
 	Press enter to confirm...
@@ -23,15 +19,16 @@ RECOVER to target dir: recovered
 Searching for MFT entries...
 
 New context LBA bias based on last $MFT record: 0x0@6291456x600000
-x612904 file/38018      /Moje zdjęcia/2021/Lagos/październik/20/DSCF9810.JPG    2021.10.16 11:01:50     size:5963k      1491:x36557280/x365585C0        x365C9580/x365CAC10     x36643750/x36643C18	
-x612906 file/38019      /Moje zdjęcia/2021/Lagos/październik/20/DSCF9811.JPG    2021.10.16 11:04:56     size:5087k      1272:x36653CF0/x366564B0
-x612908 file/38020      /Moje zdjęcia/2021/Lagos/październik/20/DSCF9812.JPG    2021.10.16 11:05:20     size:4725k      1182:x3668CE50/x3668EA00        x366B47C0/x366B5100
-x61290A file/38021      /Moje zdjęcia/2021/Lagos/październik/20/DSCF9813.JPG    2021.10.16 11:05:56     size:6124k      1532:x366EC8E0/x366EEA00        x36700868/x36701728
-x61290C file/38022      /Moje zdjęcia/2021/Lagos/październik/20/DSCF9814.JPG    2021.10.16 11:06:02     size:6485k      1622:x3670C328/x3670EA00        x36745F70/x36746A00     x3678A210/x3678A358	
-x61290E file/38023      /Moje zdjęcia/2021/Lagos/październik/20/DSCF9815.JPG    2021.10.16 11:07:04     size:6298k      1575:x367C5198/x367C6A00        x367DC690/x367DDF60
-x612910 file/38024      /Moje zdjęcia/2021/Lagos/październik/20/DSCF9816.JPG    2021.10.16 11:07:22     size:6012k      1504:x367E4740/x367E6A00        x368002B0/x36800700     x36840AB8/x368412A8	
-x612912 file/38025      /Moje zdjęcia/2021/Lagos/październik/20/DSCF9817.JPG    2021.10.16 11:10:02     size:5225k      1307:x3684C880/x3684EA00        x36870958/x368710B0
-x612914 file/38026      /Moje zdjęcia/2021/Lagos/październik/29/DSCF0116.JPG    2021.10.20 11:56:16     size:5967k      1492:x26F1E278/x26F1F350        x26F267B8/x26F276C0     x26F468E8/x26F476C0	x26F4F110/x26F4F1F8	
-x612916 file/38027      /Moje zdjęcia/2021/Lagos/październik/20/DSCF9819.JPG    2021.10.16 11:10:32     size:4154k      1039:x36905690/x36906A00        x36940770/x36941478
+x601234 file/2330       /Nasze zdjęcia/2003/'03_09_07/DSC02027.JPG      2003.09.06 18:24:08     size:1328k      333:x6DB470/x6DBED8
+x601236 file/2331       /Nasze zdjęcia/2003/'03_09_07/DSC02028.JPG      2003.09.06 18:24:28     size:1365k      342:x6DBED8/x6DC988
+x601238 file/2332       /Nasze zdjęcia/2003/'03_09_07/DSC02029.JPG      2003.09.06 18:24:50     size:1381k      346:x6DC988/x6DD458
+x60123A file/2333       /Nasze zdjęcia/2003/'03_09_07/DSC02030.JPG      2003.09.06 18:27:38     size:1342k      336:x6DD458/x6DDED8
+x60123C file/2334       /Nasze zdjęcia/2003/'03_09_07/DSC02031.JPG      2003.09.06 20:19:22     size:1246k      312:x6DDED8/x6DE898
+x60123E file/2335       /Nasze zdjęcia/2003/'03_09_07/DSC02032.JPG      2003.09.06 20:19:44     size:1181k      296:x6DE898/x6DF1D8
+x601240 file/2336       /Nasze zdjęcia/2003/'03_09_07/DSC02033.JPG      2008.11.16 23:43:39     size:1328k      333:x6DF1D8/x6DFC40
+x601242 file/2337       /Nasze zdjęcia/2003/'03_09_07/DSC02034.JPG      2003.09.06 20:24:58     size:1436k      360:x6DFC40/x6E0780
+x601244 file/2338       /Nasze zdjęcia/2003/'03_09_07/DSC02036.JPG      2003.09.06 21:06:52     size:1238k      310:x6E0780/x6E1130
+x601246 file/2339       /Nasze zdjęcia/2003/'03_09_07/DSC02037.JPG      2003.09.06 22:10:22     size:1373k      344:x6E1130/x6E1BF0
 
-Wait for child processes...
+Wait for child processes... 
+```
