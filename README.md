@@ -32,3 +32,10 @@ x601246 file/2339       /Nasze zdjęcia/2003/'03_09_07/DSC02037.JPG      2003.09
 
 Wait for child processes... 
 ```
+
+Have you recovered files from a corrupted partition?\
+Or have you recovered files from a reformatted partition?\
+Or recovered deleted files successfully?\
+Or just enjoyed inspecting data with debugging options -vv?
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-donate-yellow?style=flat-square&logo=buy-me-a-coffee)](https://www.buymeacoffee.com/kontra)
