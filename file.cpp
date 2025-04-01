@@ -2,6 +2,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <string.h>
+#include <vector>
 #include <utime.h>
 
 #include "helper.hpp"
@@ -9,13 +10,12 @@
 #include "entry.hpp"
 #include "file.hpp"
 
-#include <vector>
-unordered_map<uint64_t, pair<string, uint64_t>> File::dirs;
-
 using namespace std;
 
+unordered_map<uint64_t, pair<string, uint64_t>> File::dirs;
+
 ostream& operator<<(ostream& os, const Time_t time) {
-	os << std::put_time(std::localtime(reinterpret_cast<const time_t*>(&time)), "%Y.%m.%d %H:%M:%S");
+	os << put_time(localtime(reinterpret_cast<const time_t*>(&time)), "%Y.%m.%d %H:%M:%S");
 	return os;
 }
 
@@ -371,7 +371,7 @@ bool File::open()
 				uint64_t	magic;
 				char		cmagic;
 			} key;
-			ifstream file(full, std::ios::in | std::ios::binary);
+			ifstream file(full, ios::in | ios::binary);
 			if (!file.is_open()) cerr << "Can not open existing file to read magic: " << full;
 			file.read(&key.cmagic, sizeof(key));
 			key.magic &= context.mask;
@@ -401,7 +401,7 @@ bool File::open()
 		}
 	}
 
-	ofstream file(full, std::ios::out | std::ios::binary);
+	ofstream file(full, ios::out | ios::binary);
 	if (!file.is_open()) {
 		cerr << "Can not open file for write: " << full
 			<< ", error: " << strerror(errno) << endl;
