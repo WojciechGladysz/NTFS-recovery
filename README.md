@@ -6,7 +6,7 @@ Enter checked folder with `cd NTFS-recovery` and run `make`.
 
 For help run: `./ntfs.recover -h`\
 To recover files from /dev/sdx (no partition required) to current folder run: `./ntfs.recover /dev/sdx -R`\
-Example of 10 pictures recovery and console output:
+Example of recovery of 10 pictures from a newly reformatted empty partition with console output:
 
 `> ./ntfs.recover -R -i image -t recovered -s10 -l0x601234 /dev/sdb1`
 ```
