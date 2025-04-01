@@ -14,17 +14,20 @@ bool Context::verbose = false;
 bool Context::debug = false;
 bool Context::confirm = false;
 
-bool Context::set(options& option, const char* arg)
-{	// return value means data consumed
-		if (!*arg) return false;
-		else if (auto param = get_if<monostate>(&option)) return false;
-		else if (auto param = get_if<LBA*>(&option)) **param = stoul(arg, nullptr, 0);
-		else if (auto param = get_if<int64_t*>(&option)) **param = stol(arg, nullptr, 0);
-		else if (auto param = get_if<string*>(&option)) **param = arg;
-		else if (auto param = get_if<function<void(Context*,const char*)>>(&option)) (*param)(this, arg);
-		option = monostate{};
-		return true;
-	};
+bool Context::set(options& option, const char* arg)		// return value means data consumed
+{
+	if (get_if<monostate>(&option)) return false;
+	if (!*arg) return true;
+	try {
+			if (auto param = get_if<LBA*>(&option)) **param = stoull(arg, nullptr, 0);
+			else if (auto param = get_if<int64_t*>(&option)) **param = stoll(arg, nullptr, 0);
+			else if (auto param = get_if<string*>(&option)) **param = arg;
+			else if (auto param = get_if<function<void(Context*,const char*)>>(&option)) (*param)(this, arg);
+		}
+	catch (exception e) {}
+	option = monostate{};
+	return true;
+}
 
 void Context::parse(size_t n, char** argv)
 {

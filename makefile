@@ -9,7 +9,7 @@ OBJ = $(SRC:%.cpp=%.o)
 all: ntfs.recover
 
 ntfs.recover: $(OBJ)
-	$(CC) $^ -o $@
+	$(CC) $(CFLAGS) $^ -o $@
 
 %.o: %.cpp %.hpp $(INC)
 	$(CC) $(CFLAGS) -c $< -o $@

@@ -20,22 +20,22 @@ struct Run {
 
 struct File
 {
-	pid_t	pid;
-	bool	valid, done, used, exists, dir, error;
-	LBA		lba;
-	uint64_t index, parent;
+	pid_t		pid;
+	bool		valid, done, used, exists, dir, error;
+	LBA			lba;
+	uint64_t	index, parent;
 	std::string	name, ext, path;
-	Time_t	time, access;
-	uint64_t size, alloc, mask, entry;
-	union { uint64_t magic; char    cmagic; };
+	Time_t		time, access;
+	uint64_t	size, alloc, mask, entry;
+	union		{ uint64_t magic; char cmagic; };
 	std::ofstream ofs;
 	std::map<VCN, Run> runlist;
 	std::vector<std::pair<uint64_t, std::string>> entries;
-	const char* content;
-	Context& context;
+	const char*	content;
+	Context&	context;
 	static	std::unordered_map<uint64_t, std::pair<std::string, uint64_t>> dirs;
-	std::string	getType() const;
 
+	std::string	getType() const;
 	void mangle();
 	bool open();
 	bool hit(const std::set<std::string>&, bool);
