@@ -58,7 +58,7 @@ struct __attribute__ ((packed)) Record {
 	uint64_t	logSeq;
 
 	uint16_t	seq;
-	uint16_t	ref;
+	uint16_t	ref;	// link count
 	uint16_t	attr;
 #define USE		(1<<0)
 #define DIR		(1<<1)

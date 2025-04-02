@@ -22,10 +22,10 @@ struct Context {
 	int64_t			bias;						// offset to partition calculated first lba
 	struct { LBA first, last; } mft;			// mft file first, last lba
 	int64_t			*count, *show;				// counters for limited output
-	set<string>		include, exclude;			// file extensions to include/exclude
+	std::set<string> include, exclude;			// file extensions to include/exclude
 	union			{ uint64_t magic; char cmagic; };	// file magic word
 	uint64_t		mask;						// magic word mpush_back
-	bool			recover, all, force, index, recycle, dirs, help;
+	bool			recover, undel, all, force, index, recycle, dirs, help;
 	uint			sector, sectors;			// sector size, and sectors in cluster
 	static bool		verbose, debug, confirm;
 	size_t			size;						// min. size of a file to fork for processing
@@ -33,7 +33,7 @@ struct Context {
 	sem_t*			sem;						// semaphore to keep the no. of childs
 	mutex*			mux;						// mutex for counters
 	Format			format;
-	unordered_map<string, set<string>> mime;	// file extensions parsed from /etc/mime
+	unordered_map<string, std::set<string>> mime;	// file extensions parsed from /etc/mime
 	private:
 	bool set(options&, const char*);
 	void parse(const string&, std::set<string>&);

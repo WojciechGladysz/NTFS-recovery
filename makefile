@@ -11,6 +11,9 @@ all: ntfs.recover
 ntfs.recover: $(OBJ)
 	$(CC) $(CFLAGS) $^ -o $@
 
+recover.o: recover.cpp $(INC)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 %.o: %.cpp %.hpp $(INC)
 	$(CC) $(CFLAGS) -c $< -o $@
 

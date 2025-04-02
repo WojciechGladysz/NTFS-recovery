@@ -267,11 +267,6 @@ ostream& operator<<(ostream& os, const Nonres* attr) {
 	os.flush();
 	bool many = false;
 	while (count && runlist->lenSize && runlist->offSize) {
-		if (runlist->lenSize > 4 || runlist->offSize > 4) {
-			cerr << "corrupted: " << outpair(runlist->offSize, runlist->lenSize) << endl;
-			confirm();
-			return os;
-		}
 		uint64_t lenMask = ((1LL<<(8*runlist->lenSize))-1LL);
 		int64_t shift = runlist->run >> (8*runlist->lenSize);
 		auto offMask = ((1LL<<(8*runlist->offSize))-1LL);
@@ -282,6 +277,11 @@ ostream& operator<<(ostream& os, const Nonres* attr) {
 			<< '/' << dec << length;
 		if (ldump(runlist, runlist->lenSize + runlist->offSize + 1)) os << endl;
 		else os << tab;
+		if (runlist->lenSize > 4 || runlist->offSize > 4) {
+			cerr << "corrupted: " << outpair(runlist->offSize, runlist->lenSize) << endl;
+			confirm();
+			return os;
+		}
 		runlist = (Runlist*)((char*)runlist + 1 + runlist->lenSize + runlist->offSize);
 		many = true;
 		count -= length;
@@ -347,8 +347,9 @@ vector<pair<VCN, VCN>> Runlist::parse(File* file, size_t count) const {
 	while (count && attr->lenSize && attr->offSize) {
 		if (attr->lenSize > 4 || attr->offSize > 4) {
 			if (file) file->error = true;
-			confirm();
 			return runlist;
+			cerr << *file << endl;
+			confirm("Runlist corrupted");
 		}
 		uint64_t lenMask = ((1LL<<(8*attr->lenSize))-1LL);
 		int64_t shift = attr->run >> (8*attr->lenSize);

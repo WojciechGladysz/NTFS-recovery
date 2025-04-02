@@ -41,6 +41,7 @@ void Context::parse(size_t n, char** argv)
 				// no parametar options
 				if (*arg == 'h') help = true;
 				else if (*arg == 'R') recover = true;
+				else if (*arg == 'u') undel = true;
 				else if (*arg == 'c') confirm = true;
 				else if (*arg == 'a') all = true;
 				else if (*arg == 'd') dirs = true;
@@ -81,6 +82,7 @@ Options:
 -L lba	device LBA to stop the scan before, hex is ok with 0x
 -t dir	recovery target/output directory/mount point, defaults to current directory
 -R	recover data to target directory, otherwise dry run
+-u	recover deleted files
 -f	overwrite target file if exists, files may get overwritten anyway
 -n N	number of entries scanned, NTFS boot sector, MFT entry or just LBA count
 -s N	number of entries to process
@@ -158,14 +160,16 @@ ostream& operator<<(ostream& oss, const Context& context) {
 	oss << "pid:" << getpid() << endl;
 	if (context.recover) {
 		oss << "RECOVER to target dir: " << context.dir;
+		if (context.undel) oss << ", restore deleted";
 		if (context.force) oss << ", overwrite existing files";
 		oss << endl;
 	}
 	if (context.last && context.first > context.last) cerr << "End LBA lower that start LBA" << endl;
-	if (context.recover && !context.help) {
-		cerr << endl << "\tPress enter to confirm...";
-		cin.get();
-	}
+	if (!context.help)
+		if (context.recover || context.confirm) {
+			cerr << endl << "\tPress enter to confirm...";
+			cin.get();
+		}
 	return oss << endl;
 }
 
@@ -190,7 +194,7 @@ void Context::signature(const char* arg) {
 Context::Context(): dir("."), sector(512), sectors(8) {
 	first = last = bias = mft.first = mft.last = 0;
 	magic = mask = 0;
-	verbose = debug = confirm = recover = all = force = index = recycle = dirs = help = false;
+	verbose = debug = confirm = recover = undel = all = force = index = recycle = dirs = help = false;
 	format = Context::Format::None;
 	size = 16;     // 16MB
 	childs = thread::hardware_concurrency()?:4;

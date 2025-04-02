@@ -46,7 +46,8 @@ bool File::empty() const { return runlist.empty() && !content; }
 string File::getType() const {
 	string type;
 	if (error) type = '!';
-	if (!used) type += "not used";
+	if (!used)
+		type += "not used";
 	else if (dir) type += "DIR";
 	else if (!valid) type += "not valid";
 	else if (empty()) type += "empty";
@@ -141,8 +142,8 @@ File::File(LBA lba, const Record* record, Context& context):
 	content(nullptr), done(false), exists(false)
 {
 	if (!record || !*record) return;
-	used = record->used();
-	if (!used) return;
+	used = record->used() || context.undel;
+	if (!use()) return;
 	entry = record->alloc;
 	index = record->rec;
 	dir = record->dir();
@@ -150,11 +151,13 @@ File::File(LBA lba, const Record* record, Context& context):
 	while (next) next = next->parse(this);
 	if (hit(context.include, true))
 		hit(context.exclude, false);
+	if (!valid) return;
 	setPath(record);
-	if (index && valid)
+	if (index) {
 		if (lba < context.mft.first || lba >= context.mft.last)
 			setBias(record);
-	if (!index) {											// this is MFT file own entry
+	}
+	else {											// this is MFT file own entry
 		if (context.verbose && runlist.empty()) {
 			cerr << "No runlist in $MFT file" << endl;
 			confirm();
@@ -171,17 +174,18 @@ File::File(LBA lba, const Record* record, Context& context):
 ostream& operator<<(ostream& os, const File& file) {
 	if (file.done && !file.context.all) {
 		if (file.dir) { if (file.context.recover || !file.context.dirs) return os; }
-		else if (!file.used || !file.valid || file.exists || file.empty()) return os;
+		else if (!file.use() || !file.valid || file.exists || file.empty()) return os;
 	}
 	cerr << clean;			// just print file basic info and return to line begin
 	os << hex << uppercase << 'x' << file.lba << tab << file.getType();
-	if (file.used) os<< '/' << dec << file.index << tab << file.path << file.name << tab << file.time;
+	if (file.use()) os<< '/' << dec << file.index << tab << file.path << file.name << tab << file.time;
 	if (!file.done) {
 		cerr.flush();
-		if (file.used && file.valid) os << "... ";		// just print file basic info and return to line begin
+		if (file.use() && file.valid) os << "... ";		// just print file basic info and return to line begin
 		os.flush();
 		return os;
 	}
+	file.context.dec();
 	os << tab;
 	if (!file.content) {
 		if (file.size) {
@@ -208,10 +212,12 @@ ostream& operator<<(ostream& os, const File& file) {
 	return os << endl;
 }
 
+bool File::use() const { return used || context.undel; }
+
 void File::recover()
 {
 	cerr << *this;		// just print file basic info and return to line begin
-	if (used && valid && context.recover && size > context.size * MB && !dir) {
+	if (use() && valid && context.recover && size > context.size * MB && !dir) {
 		sem_wait(context.sem);
 		pid = fork();
 		if (pid < 0) {
@@ -227,7 +233,7 @@ void File::recover()
 		}
 	}
 
-	if (used && valid && !empty())
+	if (use() && valid && !empty())
 		if (context.recover ^ dir) {
 			ifstream idev(context.dev, ios::in | ios::binary);
 			if (idev.is_open())
@@ -235,10 +241,7 @@ void File::recover()
 			else error = true;
 		}
 
-	if (!context.recover || context.all) {
-		done = true;
-		if (valid) context.dec();
-	}
+	if (!context.recover || context.all) done = true;
 
 	cout << *this;
 
@@ -307,10 +310,14 @@ ifstream& operator>>(ifstream& ifs, File& file)
 							index->header->parse(&file);
 						else
 							file.error = true;
+						if (!*index && file.context.dirs) {
+							if (file.context.confirm) cerr << file << endl;
+							confirm("Bad INDX cluster");
+						}	
 					}
 				}
 			}
-	else if(file.content) {
+	else if (file.content) {
 		file.magic = *reinterpret_cast<const uint16_t*>(file.content);
 		if (file.context.magic && file.context.magic != (file.magic & file.context.mask))
 			file.valid = false;

@@ -19,5 +19,5 @@ using LBA = uint64_t;
 bool ldump(const void*, uint, uint = 0);
 bool pdump(const void*, const void*);
 bool dump(LBA, const std::vector<char>&);
-void confirm();
+void confirm(std::string&& info = std::string());
 std::string& lower(std::string&);

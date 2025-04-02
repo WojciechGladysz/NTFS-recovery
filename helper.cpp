@@ -58,8 +58,9 @@ string& lower(string& text) {
     return text;
 }
 
-void confirm() {
+void confirm(string&& info) {
     if (!Context::confirm) return;
-    cerr << "\tPress a key to continue...";
+    if (!info.empty()) cerr << tab << info << endl;
+    cerr << "\tPress enter to continue...";
     cin.get();
 }

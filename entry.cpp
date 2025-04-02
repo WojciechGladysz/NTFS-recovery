@@ -89,7 +89,7 @@ const Name* Record::getName() const {
 ostream& operator<<(ostream& os, const Record* record) {
 	uint32_t* endTag = (uint32_t*)(record->key + record->size) - 2;
 	os << "Record: ";
-	if (!record->used())
+	if (!record->used() && false)
 		return os << "not used" << endl;
 	if (*endTag != 0xFFFFFFFF) {
 		os << "BAD END TAG: " << record->size << '/' << record->alloc << '/' << *endTag << endl;
@@ -138,7 +138,10 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
 	}
 
 	const Boot* boot = reinterpret_cast<Boot*>(entry.data());
-	if (!entry.context.recover && entry.context.noExt() && *boot) {
+	if (!entry.context.recover
+			&& entry.context.all
+			&& *boot)
+	{
 		cerr << clean << hex << uppercase << 'x' << lba << tab;
 		entry.context.sector = boot->sector;
 		entry.context.sectors = boot->sectors;
@@ -150,8 +153,9 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
 	}
 
 	const Index* index = reinterpret_cast<const Index*>(entry.data());
-	// if (!entry.context.recover && entry.context.noExt() && entry.context.index && *index) {
-	if (!entry.context.recover && entry.context.index && *index) {
+	if (!entry.context.recover
+			&& entry.context.index
+			&& *index) {
 		entry.resize(entry.context.sector * entry.context.sectors);
 		size_t more = entry.size() - entry.context.sector;
 		if (!ifs.read(entry.data() + entry.context.sector, more)) {
@@ -169,11 +173,13 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
 
 	const Record* record = reinterpret_cast<Record*>(entry.data());
 	if (!*record) {
-		if (entry.context.debug) {
+		if (entry.context.all && entry.context.verbose) {
 			cerr << endl << hex << uppercase << 'x' << lba << tab;
-			dump(lba, entry);
-			cerr << endl;
-			confirm();
+			entry.context.dec();
+			if (dump(lba, entry)) {
+				cerr << endl;
+				confirm();
+			}
 		}
 		return ifs;;
 	}
@@ -198,10 +204,11 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
 	}
 
 	entry.resize(record->size);
-	if (dump(lba, entry)) cout << endl;
 	if (entry.context.verbose) {
 		record = reinterpret_cast<Record*>(entry.data());
-		cout << endl << hex << uppercase << 'x' << lba << tab << record;
+		cout << endl << hex << uppercase << 'x' << lba << tab;
+		if (dump(lba, entry)) cout << endl;
+		cout << record;
 	}
 	return ifs;
 }

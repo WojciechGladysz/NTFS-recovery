@@ -46,6 +46,7 @@ struct File
 	bool setPath(const Record*);
 	void mapDir(const Record*, uint64_t);
 	File(LBA, const Record*, struct Context&);
+	bool use() const;
 	void recover();
 };
 
