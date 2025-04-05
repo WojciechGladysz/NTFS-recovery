@@ -46,7 +46,7 @@ bool pdump(const void* start, const void* end) {
     return ldump(start, length);
 }
 
-bool dump(LBA lba, const vector<char>& data) {
+bool dump(LBA lba, const std::vector<char>& data) {
     if (!Context::debug) return false;
     cerr << "offset: " << outvar(lba) << endl;
     return ldump(data.data(), (uint)data.size()); 

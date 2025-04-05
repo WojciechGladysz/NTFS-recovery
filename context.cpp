@@ -4,7 +4,6 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <string>
 #include <thread>
 
 #include "helper.hpp"
@@ -19,11 +18,11 @@ bool Context::set(options& option, const char* arg)		// return value means data 
 	if (get_if<monostate>(&option)) return false;
 	if (!*arg) return true;
 	try {
-			if (auto param = get_if<LBA*>(&option)) **param = stoull(arg, nullptr, 0);
-			else if (auto param = get_if<int64_t*>(&option)) **param = stoll(arg, nullptr, 0);
-			else if (auto param = get_if<string*>(&option)) **param = arg;
-			else if (auto param = get_if<function<void(Context*,const char*)>>(&option)) (*param)(this, arg);
-		}
+		if (auto param = get_if<LBA*>(&option)) **param = stoull(arg, nullptr, 0);
+		else if (auto param = get_if<int64_t*>(&option)) **param = stoll(arg, nullptr, 0);
+		else if (auto param = get_if<string*>(&option)) **param = arg;
+		else if (auto param = get_if<function<void(Context*,const char*)>>(&option)) (*param)(this, arg);
+	}
 	catch (exception e) {}
 	option = monostate{};
 	return true;
@@ -38,7 +37,7 @@ void Context::parse(size_t n, char** argv)
 		if (*arg == '-') {
 			option = monostate{};
 			while (*++arg){
-				// no parametar options
+				// no parameter options
 				if (*arg == 'h') help = true;
 				else if (*arg == 'R') recover = true;
 				else if (*arg == 'u') undel = true;
@@ -54,8 +53,8 @@ void Context::parse(size_t n, char** argv)
 				// options with parameter
 				else if (*arg == 'l') option = &first;
 				else if (*arg == 'L') option = &last;
-				else if (*arg == 'n') option = count;
-				else if (*arg == 's') option = show;
+				else if (*arg == 'n') option = &shared->count;
+				else if (*arg == 's') option = &shared->show;
 				else if (*arg == 'S') option = &size;
 				else if (*arg == 'm') option = &Context::signature;
 				else if (*arg == 'i') option = &Context::addInclude;
@@ -105,15 +104,14 @@ Options:
 -c	stop to confirm some actions
 
 Example:
-ntfs.recovery /dev/sdb				# scan disk /dev/sdb
-ntfs.recovery /dev/sdc1 -t recovered -R		# recover files from partition /dev/sdc1 to recovered dir
+ntfs.recovery /dev/sdb1				# dry run, scan partition /dev/sdb1
+ntfs.recovery /dev/sdc -t recovered -R		# recover files from disk /dev/sdc to recovered dir
 
 )EOF";
 	cerr << "Parsed arguments:\n" << *this;
 
 	if (dev.empty())
 		cerr << "Give device/file name. For example /dev/sdb, /dev/sdc2" << endl;
-
 	if (dev.empty() || help) exit(EXIT_SUCCESS);
 }
 
@@ -122,8 +120,8 @@ ostream& operator<<(ostream& oss, const Context& context) {
 		<< "LBA:" << outvar(context.first);
 	if (context.last) oss << " >> " << outvar(context.last);
 	oss << ", ";
-	if (*context.count > 0) oss << "count:" << *context.count << ", ";
-	if (*context.show > 0) oss << "process:" << *context.show << ", ";
+	if (context.shared->count > 0) oss << "count:" << context.shared->count << ", ";
+	if (context.shared->show > 0) oss << "process:" << context.shared->show << ", ";
 	if (context.magic) {
 		oss << "magic:" << hex << uppercase << 'x' << context.magic << '/';
 		cerr.write(&context.cmagic, sizeof(context.magic)) << ", ";
@@ -198,13 +196,10 @@ Context::Context(): dir("."), sector(512), sectors(8) {
 	format = Context::Format::None;
 	size = 16;     // 16MB
 	childs = thread::hardware_concurrency()?:4;
-	mux = (mutex*)mmap(NULL, sizeof(mutex), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-	count = (int64_t*)mmap(NULL, sizeof(int64_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-	show = (int64_t*)mmap(NULL, sizeof(int64_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-	sem = (sem_t*)mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-	sem_init(sem, 1, 4);
-	*count = -1L;
-	*show = -1L;
+	shared = (Shared*)mmap(NULL, sizeof(Shared), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+	sem_init(&shared->sem, 1, 4);
+	shared->count = -1L;
+	shared->show = -1L;
 	while (dir.back() == '/') dir.pop_back();
 	ifstream mime("/etc/mime.types");
 	string line, type, extensions, file;

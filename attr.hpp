@@ -24,8 +24,8 @@ struct __attribute__ ((packed)) Info {
 };
 
 struct __attribute__ ((packed)) Name {
-	uint64_t    dir:32;
-	uint64_t    unknown:32;
+	uint64_t    dir:16;
+	uint64_t    unknown:48;
 
 	Time        creatTime;
 	Time        modTime;

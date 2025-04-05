@@ -24,14 +24,13 @@ int main(int n, char** argv) {
 
 	LBA lba = context.first;
 	if (!idev.seekg(lba * context.sector)) {
-		cerr << "Device error: " << context.dev << endl
+		cerr << "Device seek error: " << context.dev << endl
 			<< "Error: " << strerror(errno) << endl;
 		exit(EXIT_FAILURE);
 	}
 
-	// scan for NTFS boot sector and MFT entries
 	cerr << "Searching for MFT entries...\n" << endl;
-
+	// scan for NTFS boot sector and MFT entries
 	while (idev) {
 		lba = idev.tellg() / context.sector;
 		if (context.stop(lba)) break;

@@ -52,13 +52,13 @@ struct __attribute__ ((packed)) Index {
 
 struct __attribute__ ((packed)) Record {
 	char		key[4];
-	uint16_t	updateSeq;
-	uint16_t	updateSize;
+	uint16_t	updateSeq;		// fixup array
+	uint16_t	updateSize;		// fixup array enteries
 
 	uint64_t	logSeq;
 
 	uint16_t	seq;
-	uint16_t	ref;	// link count
+	uint16_t	ref;			// link count
 	uint16_t	attr;
 #define USE		(1<<0)
 #define DIR		(1<<1)

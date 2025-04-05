@@ -41,18 +41,18 @@ bool File::hit(const set<string>& entries, bool must)		// return means continue 
 	return false;
 }
 
-bool File::empty() const { return runlist.empty() && !content; }
+bool File::empty() const { return !dir && runlist.empty() && !content; }
 
 string File::getType() const {
 	string type;
 	if (error) type = '!';
-	if (!used)
-		type += "not used";
-	else if (dir) type += "DIR";
+	if (!context.undel && !used) type += "not used";
 	else if (!valid) type += "not valid";
 	else if (empty()) type += "empty";
 	else if (!context.force && exists) type += "exist";
 	else if (done && context.mask && context.magic != magic) type += "no magic";
+	else if (!used) type += dir? "DELETED": "deleted";
+	else if (dir) type += "DIR";
 	else type += "file";
 	return type;
 }
@@ -111,6 +111,8 @@ bool File::setPath(const Record* record)
 					}
 					return setPath(record);
 				}
+				error = true;
+				return false;
 			}
 		}
 	}
@@ -142,7 +144,7 @@ File::File(LBA lba, const Record* record, Context& context):
 	content(nullptr), done(false), exists(false)
 {
 	if (!record || !*record) return;
-	used = record->used() || context.undel;
+	used = record->used();
 	if (!use()) return;
 	entry = record->alloc;
 	index = record->rec;
@@ -170,6 +172,8 @@ File::File(LBA lba, const Record* record, Context& context):
 		dirs.clear();
 	}
 }
+
+bool File::use() const { return used || context.undel; }
 
 ostream& operator<<(ostream& os, const File& file) {
 	if (file.done && !file.context.all) {
@@ -212,22 +216,20 @@ ostream& operator<<(ostream& os, const File& file) {
 	return os << endl;
 }
 
-bool File::use() const { return used || context.undel; }
-
 void File::recover()
 {
 	cerr << *this;		// just print file basic info and return to line begin
 	if (use() && valid && context.recover && size > context.size * MB && !dir) {
-		sem_wait(context.sem);
+		sem_wait(&context.shared->sem);
 		pid = fork();
 		if (pid < 0) {
-			sem_post(context.sem);
+			sem_post(&context.shared->sem);
 			cerr << "Failed to create read process, error: " << strerror(errno) << endl;
 			cerr << "Continue in main: " << name << endl;
 		}
 		else if (pid) {		// parent process, return
 			int sem;
-			sem_getvalue(context.sem, &sem);
+			sem_getvalue(&context.shared->sem, &sem);
 			if (context.verbose) cerr << "New child/" << sem << ':' << pid << '/' << index << ',' << endl;
 			return;
 		}
@@ -238,7 +240,12 @@ void File::recover()
 			ifstream idev(context.dev, ios::in | ios::binary);
 			if (idev.is_open())
 				idev >> *this;
-			else error = true;
+			else {
+				error = true;
+				cerr << "Can not open device: " << context.dev << endl
+					<< "Error: " << strerror(errno) << endl;
+				confirm();
+			}
 		}
 
 	if (!context.recover || context.all) done = true;
@@ -246,7 +253,7 @@ void File::recover()
 	cout << *this;
 
 	if (!pid) {
-		sem_post(context.sem);
+		sem_post(&context.shared->sem);
 		exit(EXIT_SUCCESS);
 	}
 }
@@ -295,12 +302,11 @@ ifstream& operator>>(ifstream& ifs, File& file)
 								file.valid = false;
 								goto out;
 							}
-							if (!*file.context.show) return ifs;
+							if (!file.context.shared->show) return ifs;
 							if (!file.open()) {
 								if (!file.done) file.error = false;
 								return ifs;
 							}
-							file.context.dec();
 						}
 						file.ofs.write(buffer.data(), chunk);
 					}
@@ -322,10 +328,7 @@ ifstream& operator>>(ifstream& ifs, File& file)
 		if (file.context.magic && file.context.magic != (file.magic & file.context.mask))
 			file.valid = false;
 		else if (!file.open()) return ifs;
-		else {
-			file.context.dec();
-			file.ofs.write(file.content, file.size);
-		}
+		else file.ofs.write(file.content, file.size);
 	}
 	else		// empty file
 	{
@@ -338,7 +341,7 @@ out:
 	else return ifs;
 
 	full = file.context.dir + file.path + file.name;
-	if (file.error) unlink(full.c_str());
+	if (file.error && !file.context.undel) unlink(full.c_str());
 	else {
 		times = {(time_t)file.access, (time_t)file.time};
 		if (utime(full.c_str(), &times)) {
@@ -384,7 +387,9 @@ bool File::open()
 			key.magic &= context.mask;
 			if (key.magic != context.magic) magic = false;
 		}
-		if (magic && (time_t) time >= info.st_mtime && size >= info.st_size && !context.force) {		// check file size against MFT record
+		if (magic && (time_t) time >= info.st_mtime		// check existing file time & size against MFT record
+				&& size >= info.st_size && !context.force)
+		{
 			if (context.verbose) cerr << ", and its data seems OK. Skipping" << endl;
 			done = exists = true;
 			return false;

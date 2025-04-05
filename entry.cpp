@@ -89,8 +89,8 @@ const Name* Record::getName() const {
 ostream& operator<<(ostream& os, const Record* record) {
 	uint32_t* endTag = (uint32_t*)(record->key + record->size) - 2;
 	os << "Record: ";
-	if (!record->used() && false)
-		return os << "not used" << endl;
+	if (!record->used())
+		os << "not used" << endl;
 	if (*endTag != 0xFFFFFFFF) {
 		os << "BAD END TAG: " << record->size << '/' << record->alloc << '/' << *endTag << endl;
 		confirm();
@@ -113,8 +113,9 @@ ostream& operator<<(ostream& os, const Record* record) {
 	os << endl
 		<< "size: " << outvar(record->size) << endl
 		<< "allocated: " << outvar(record->alloc) << endl
-		<< "base: " << outvar(record->base) << endl
-		<< "next: " << outvar(record->next) << endl
+		<< "base record: " << outvar(record->base) << endl
+		<< "next attr no: " << outvar(record->next) << endl
+		<< "index: " << outvar(record->rec) << endl
 		<< endl
 		<< "Attributes:\n" << endl;
 	const Attr* next = reinterpret_cast<const Attr*>(record->key + record->attr);
@@ -138,28 +139,27 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
 	}
 
 	const Boot* boot = reinterpret_cast<Boot*>(entry.data());
-	if (!entry.context.recover
-			&& entry.context.all
-			&& *boot)
-	{
-		cerr << clean << hex << uppercase << 'x' << lba << tab;
+	if (*boot) {
 		entry.context.sector = boot->sector;
 		entry.context.sectors = boot->sectors;
-		if (dump(lba, entry)) cerr << endl << endl;
-		cerr << boot << endl;
-		entry.context.dec();
-		confirm();
+		if (!entry.context.recover && entry.context.all) {
+			cerr << clean << hex << uppercase << 'x' << lba << tab;
+			if (dump(lba, entry)) cerr << endl << endl;
+			cerr << boot << endl;
+			entry.context.dec();
+			confirm();
+		}
 		return ifs;
 	}
 
 	const Index* index = reinterpret_cast<const Index*>(entry.data());
-	if (!entry.context.recover
-			&& entry.context.index
-			&& *index) {
+	if (*index
+			&& !entry.context.recover
+			&& entry.context.index) {
 		entry.resize(entry.context.sector * entry.context.sectors);
 		size_t more = entry.size() - entry.context.sector;
 		if (!ifs.read(entry.data() + entry.context.sector, more)) {
-			cerr << "Device read error at: " << hex << lba << endl;
+			cerr << "Device read error @" << hex << lba << endl;
 			exit(EXIT_FAILURE);
 		}
 		cerr << clean << hex << uppercase << 'x' << lba << tab;
@@ -198,7 +198,7 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
 	size_t more = alloc - entry.context.sector;
 	if (more) {
 		if (!ifs.read(entry.data() + entry.context.sector, more)) {
-			cerr << endl << "Device read error at: " << hex << lba << endl;
+			cerr << endl << "Device read error @" << hex << lba << endl;
 			exit(EXIT_FAILURE);
 		}
 	}
