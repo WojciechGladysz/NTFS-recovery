@@ -120,14 +120,18 @@ ostream& operator<<(ostream& oss, const Context& context) {
 		<< "LBA:" << outvar(context.first);
 	if (context.last) oss << " >> " << outvar(context.last);
 	oss << ", ";
+	if (context.undel) oss << "include deleted, ";
 	if (context.shared->count > 0) oss << "count:" << context.shared->count << ", ";
 	if (context.shared->show > 0) oss << "process:" << context.shared->show << ", ";
+	if (context.all) oss << "show all, ";
+	else if (context.dirs) oss << "show dirs, ";
+	if (context.index) oss << "show indx, ";
 	if (context.magic) {
 		oss << "magic:" << hex << uppercase << 'x' << context.magic << '/';
 		cerr.write(&context.cmagic, sizeof(context.magic)) << ", ";
 	}
 	if (!context.include.empty()) {
-		oss << "include[";
+		oss << "only[";
 		for (auto extension: context.include) oss << extension << ",";
 		oss << "\b] ";
 	}
@@ -143,9 +147,6 @@ ostream& operator<<(ostream& oss, const Context& context) {
 		else oss << "verbose, ";
 	}
 	if (context.confirm) oss << "confirm, ";
-	if (context.all) oss << "show all, ";
-	else if (context.dirs) oss << "show dirs, ";
-	if (context.index) oss << "show indx, ";
 
 	if (context.format != Context::Format::None) {
 		oss << "path:/yyyy/";
@@ -158,7 +159,6 @@ ostream& operator<<(ostream& oss, const Context& context) {
 	oss << "pid:" << getpid() << endl;
 	if (context.recover) {
 		oss << "RECOVER to target dir: " << context.dir;
-		if (context.undel) oss << ", restore deleted";
 		if (context.force) oss << ", overwrite existing files";
 		oss << endl;
 	}
@@ -191,6 +191,7 @@ void Context::signature(const char* arg) {
 
 Context::Context(): dir("."), sector(512), sectors(8) {
 	first = last = bias = mft.first = mft.last = 0;
+	mft.size = 1024;
 	magic = mask = 0;
 	verbose = debug = confirm = recover = undel = all = force = index = recycle = dirs = help = false;
 	format = Context::Format::None;
@@ -198,8 +199,8 @@ Context::Context(): dir("."), sector(512), sectors(8) {
 	childs = thread::hardware_concurrency()?:4;
 	shared = (Shared*)mmap(NULL, sizeof(Shared), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 	sem_init(&shared->sem, 1, 4);
-	shared->count = -1L;
-	shared->show = -1L;
+	shared->count = -1;
+	shared->show = -1;
 	while (dir.back() == '/') dir.pop_back();
 	ifstream mime("/etc/mime.types");
 	string line, type, extensions, file;

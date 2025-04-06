@@ -26,11 +26,10 @@ struct __attribute__ ((packed)) Boot {
 	union {
 		int8_t	xsize;				// 0x40
 		int32_t size;				// 0x40
-	};
-	uint8_t		record;
-	uint8_t		index;
-	uint16_t	serial;
-	uint8_t		unused3[438];
+	} record;
+	uint32_t	index;				// 0x44
+	uint64_t	serial;
+	uint8_t		unused3[430];
 	uint16_t	endTag;
 
 	operator bool() const;
@@ -80,12 +79,10 @@ struct __attribute__ ((packed)) Record {
 	operator bool() const;
 };
 
-class Entry:std::vector<char> {
+struct Entry:std::vector<char> {
+	operator bool();
 	Context& context;
-	public:
 	Entry(Context&);
 	const Record* record() const { return reinterpret_cast<const Record*>(data()); }
 	friend ifstream& operator>>(ifstream& ifs, Entry& entry);
 };
-
-ostream& operator<<(ostream&, const Entry*);

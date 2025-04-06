@@ -26,7 +26,10 @@ struct Context {
 	string			dir;						// recovery target directory
 	LBA				first, last;				// device/file first, last lba to scan
 	int64_t			bias;						// offset to partition calculated first lba
-	struct { LBA first, last; } mft;			// mft file first, last lba
+	struct {
+		LBA first, last;						// mft file first, last lba
+		uint32_t	size;						// mft entry size
+	} mft;
 	Shared			*shared;					// counters for limited output
 	std::set<string> include, exclude;			// file extensions to include/exclude
 	union			{ uint64_t magic; char cmagic; };	// file magic word
@@ -47,7 +50,7 @@ struct Context {
 	Context();
 	void parse(size_t, char**);
 	bool stop(LBA lba) {
-		if ((shared->count)-- == 0) return true;
+		if (!shared->count--) return true;
 		if (last) return !(lba < last);
 		return false;
 	}

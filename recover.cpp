@@ -36,7 +36,7 @@ int main(int n, char** argv) {
 		if (context.stop(lba)) break;
 		Entry entry(context);
 		idev >> entry;
-		if (!*entry.record()) continue;
+		if (!entry) continue;
 		File file(lba, entry.record(), context);
 		file.recover();
 		waitpid(-1, NULL, WNOHANG);

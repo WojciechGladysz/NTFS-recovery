@@ -14,8 +14,8 @@ Boot::operator bool() const {
 }
 
 uint32_t Boot::getSize() const {
-	uint32_t size = size;
-	if (xsize < 0) size = 1 << (-xsize);
+	uint32_t size = record.size;
+	if (record.xsize < 0) size = 1 << (-record.xsize);
 	return size;
 }
 
@@ -31,9 +31,11 @@ ostream& operator<<(ostream& os, const Boot* boot) {
 		<< "total: " << outvar(boot->total) << tab << (total/(1LL<<30)) << "G" << endl
 		<< "MFT: " << outvar(boot->start) << endl
 		<< "mirror: " << outvar(boot->mirror) << endl
-		<< "size: " << outvar(boot->getSize()) << endl
-		<< "record: " << outchar(boot->record) << endl
-		<< "serial: " << outvar(boot->serial) << endl;
+		<< "record size: " << outvar(boot->getSize()) << endl
+		<< "cluster per index: " << outchar(boot->index) << endl
+		<< "serial: " << outvar(boot->serial) << endl
+		// << "end tag: " << outvar(boot->endTag) << endl
+		;
 	return os;
 };
 
@@ -55,8 +57,6 @@ ostream& operator<<(ostream& os, const Index* index)
 }
 
 Record::operator bool() const {
-	// uint32_t* endTag = (uint32_t*)(key + size) - 2;
-	// return !strncmp(key, "FILE", 4) && *endTag == 0xFFFFFFFF;
 	return !strncmp(key, "FILE", 4);
 }
 
@@ -129,6 +129,24 @@ ostream& operator<<(ostream& os, const Record* record) {
 
 Entry::Entry(Context& context): context(context) {}
 
+Entry::operator bool() {
+	const Record* record = this->record();
+	const uint32_t* key = nullptr;
+	bool res = *record
+		&& record->alloc <= context.mft.size
+		&& record->size <= record->alloc
+		&& record->size <= size();
+	/* if (context.debug && !res) {
+		cerr << "key: "; cerr.write(record->key, sizeof(record->key));
+		cerr << endl << "data: " << outvar(size()) << endl 
+			<< "alloc: " << outvar(record->alloc) << endl
+			<< "size: " << outvar(record->size) << endl;
+	} */
+	if (res) key = (const uint32_t*)(record->key + record->size) - 2;
+	// if (context.debug && key) cerr << "key: 0x" << hex << *key;
+	return res && key && *key == 0xFFFFFFFF;
+}
+
 ifstream& operator>>(ifstream& ifs, Entry& entry)
 {
 	LBA lba = ifs.tellg() / entry.context.sector;
@@ -142,6 +160,7 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
 	if (*boot) {
 		entry.context.sector = boot->sector;
 		entry.context.sectors = boot->sectors;
+		entry.context.mft.size = boot->getSize();
 		if (!entry.context.recover && entry.context.all) {
 			cerr << clean << hex << uppercase << 'x' << lba << tab;
 			if (dump(lba, entry)) cerr << endl << endl;
@@ -185,12 +204,14 @@ ifstream& operator>>(ifstream& ifs, Entry& entry)
 	}
 
 	auto alloc = record->alloc;
-	if (alloc > (1<<16)) {
-		cerr << endl << "Not resizing to " << outvar(alloc) << endl;
-		dump(lba, entry);
-		cerr << endl << "Skipping currupted entry:"
-			<< hex << uppercase << 'x' << lba << ':' << endl << record;
-		confirm();
+	if (alloc > entry.context.mft.size) {
+		if (entry.context.verbose) {
+			cerr << endl << "Not resizing to " << outvar(alloc) << endl;
+			if (dump(lba, entry)) cerr << endl;
+			cerr << "Skipping currupted entry: "
+				<< hex << uppercase << 'x' << lba << endl;
+			confirm();
+		}
 		return ifs;
 	}
 
