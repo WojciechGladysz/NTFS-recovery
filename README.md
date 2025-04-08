@@ -1,12 +1,14 @@
-A linux tool to recover files from NTFS partition.\
-Opens device file, partition file or just a file like image in read only mode.
+A linux tool to recover files from NTFS file system.\
+Opens device file, partition file or just a file like image in read only mode.\
+You need to be a member of disk group to access disk or partition file.
 
 To build run `git clone git@github.com:Kontra2B/NTFS-recovery.git`\
 Enter checked folder with `cd NTFS-recovery` and run `make`.
 
 For help run: `./ntfs.recover -h`\
 To recover files from /dev/sdx (no partition required) to current folder run: `./ntfs.recover /dev/sdx -R`\
-Example of recovery of 10 pictures from a newly reformatted empty partition with console output:
+Add -u option to handle deleted files.\
+Example of recovery of 10 pictures from a newly re-formatted (empty) partition with console output:
 
 `> ./ntfs.recover -R -i image -t recovered -s10 -l0x601234 /dev/sdb1`
 ```
