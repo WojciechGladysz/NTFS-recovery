@@ -72,7 +72,7 @@ void File::mapDir(const Record* record, uint64_t offset) {
 
 bool File::setPath(const Record* record)
 {
-	if (!valid) return false;
+	if (!valid && index) return false;
 	path = "/";
 	bool trash = false;
 	uint64_t dir = parent;
@@ -147,23 +147,17 @@ File::File(LBA lba, const Record* record, Context& context):
 	valid(false), lba(lba), dir(false), size(0), alloc(0),
 	content(nullptr), done(false), exists(false)
 {
-	if (!record || !*record) return;
+	if (!record || !*record) return;		// based on entry magic/key word "FILE"
 	used = record->used();
-	if (!use()) return;
+	if (!use()) return;						// use if not used and recovering deleted files
 	entry = record->alloc;
 	index = record->rec;
 	dir = record->dir();
 	const Attr* next = (const Attr*)(record->key + record->attr);
-	while (next) next = next->parse(this);
-	if (hit(context.include, true))
-		hit(context.exclude, false);
-	if (!valid) return;
+	while (next) next = next->parse(this);	// parse file entry attributes
+	if (hit(context.include, true)) hit(context.exclude, false);	// no file extension match not valid
 	setPath(record);
-	if (index) {
-		if (lba < context.mft.first || lba >= context.mft.last)
-			setBias(record);
-	}
-	else {											// this is MFT file own entry
+	if (!index && !error) {		// this is MFT file own entry. MFT mirror shall be excluded by !error condition
 		if (context.verbose && runlist.empty()) {
 			cerr << "No runlist in $MFT file" << endl;
 			confirm();
@@ -175,6 +169,9 @@ File::File(LBA lba, const Record* record, Context& context):
 			<< outvar(context.bias) << '@' << outvar(lba) << endl;
 		dirs.clear();
 	}
+	if (valid && index)
+		if (lba < context.mft.first || lba >= context.mft.last)
+			setBias(record);
 }
 
 bool File::use() const { return used || context.undel; }
@@ -240,17 +237,18 @@ void File::recover()
 	}
 
 	if (use() && valid && !empty())
-		if (context.recover ^ dir) {
-			ifstream idev(context.dev, ios::in | ios::binary);
-			if (idev.is_open())
-				idev >> *this;
-			else {
-				error = true;
-				cerr << "Can not open device: " << context.dev << endl
-					<< "Error: " << strerror(errno) << endl;
-				confirm();
+		if (!error || context.undel)
+			if (context.recover ^ dir) {
+				ifstream idev(context.dev, ios::in | ios::binary);
+				if (idev.is_open())
+					idev >> *this;
+				else {
+					error = true;
+					cerr << "Can not open device: " << context.dev << endl
+						<< "Error: " << strerror(errno) << endl;
+					confirm();
+				}
 			}
-		}
 
 	if (!context.recover || context.all) done = true;
 
