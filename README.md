@@ -10,7 +10,7 @@ To recover files from /dev/sdx (no partition required) to current folder run: `.
 Add -u option to handle deleted files.\
 Example of recovery of 4 pictures from a newly re-formatted (empty) partition with console output:
 
-`> ./ntfs.recover /dev/sda2 -s4 -iimage -Rt recover
+`> ./ntfs.recover /dev/sda2 -s4 -iimage -Rt recover`
 ```
 Parsed arguments:
 Device:/dev/sda2, LBA:0x0, include deleted, process:4, only[image] pid:1061439
