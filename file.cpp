@@ -19,6 +19,10 @@ ostream& operator<<(ostream& os, const Time_t time) {
 	return os;
 }
 
+/*
+ * test file extension belongs to a set of extensions
+ * return value depends on weather the match is expected or not
+ */
 bool File::hit(const set<string>& entries, bool must)		// return means continue checking
 {
 	if (!valid) return false;								// no further checking
@@ -26,7 +30,7 @@ bool File::hit(const set<string>& entries, bool must)		// return means continue 
 	valid = !must;
 	string ext = this->ext;
 	lower(ext);
-	for (auto extension: entries) {
+	for (const auto& extension: entries) {
 		auto hit = context.mime.find(extension);
 		if (hit != context.mime.end())
 			if (hit->second.find(ext) != hit->second.end()) {

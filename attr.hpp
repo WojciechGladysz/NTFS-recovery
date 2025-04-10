@@ -36,6 +36,14 @@ struct __attribute__ ((packed)) Name {
 	uint64_t    size;
 
 	uint32_t    flags;
+#define	RONLY	(1<<0)
+#define	HID		(1<<1)
+#define	SYS		(1<<2)
+#define	ARCH	(1<<5)
+#define	DEV		(1<<6)
+#define	NORM	(1<<7)
+#define	TEMP	(1<<8)
+#define	SPAR	(1<<9)
 	uint32_t    reparse;
 
 	uint8_t     length;

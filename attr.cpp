@@ -146,7 +146,15 @@ ostream& operator<<(ostream& os, const Name* attr) {
 		<< "access: " << outtime(attr->accessTime) << endl
 		<< "size: " << outvar(attr->size) << endl
 		<< "alloc: " << outvar(attr->alloc) << endl
-		<< "flags: " << outvar(attr->flags) << endl
+		<< "flags: " << outvar(attr->flags);
+	if (attr->flags & RONLY) os << "/READ ONLY";
+	if (attr->flags & HID) os << "/HIDDEN";
+	if (attr->flags & SYS) os << "/SYSTEM";
+	if (attr->flags & ARCH) os << "/ARCHIVE";
+	if (attr->flags & DEV) os << "/DEVICE";
+	if (attr->flags & TEMP) os << "/NORMAL";
+	if (attr->flags & SPAR) os << "/SPARSE";
+	os << endl
 		<< "length: " << outchar(attr->length) << endl
 		<< "space: " << outchar(attr->space) << endl;
 	return os;

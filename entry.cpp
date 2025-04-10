@@ -29,8 +29,8 @@ ostream& operator<<(ostream& os, const Boot* boot) {
 		<< "heads: " << outchar(boot->heads) << endl
 		<< "hidden: " << outvar(boot->hidden) << endl
 		<< "total: " << outvar(boot->total) << tab << (total/(1LL<<30)) << "G" << endl
-		<< "MFT: " << outvar(boot->start) << endl
-		<< "mirror: " << outvar(boot->mirror) << endl
+		<< "$MFT: " << outvar(boot->start * boot->sectors) << endl
+		<< "$MFT mirror: " << outvar(boot->mirror * boot->sectors) << endl
 		<< "record size: " << outvar(boot->getSize()) << endl
 		<< "cluster per index: " << outchar(boot->index) << endl
 		<< "serial: " << outvar(boot->serial) << endl

@@ -16,12 +16,6 @@ using LBA = uint64_t;
 struct Context {
 	using options = variant<monostate, LBA*, int64_t*, string*, function<void(Context*, const char*)>>;
 	enum class Format{ None, Year, Month, Day };
-	struct Shared {
-		sem_t	sem;
-		mutex	mux;
-		int64_t	count;
-		int64_t show;
-	};
 	string			dev;						// name of device to scan and recover
 	string			dir;						// recovery target directory
 	LBA				first, last;				// device/file first, last lba to scan
@@ -30,7 +24,12 @@ struct Context {
 		LBA first, last;						// mft file first, last lba
 		uint32_t	size;						// mft entry size
 	} mft;
-	Shared			*shared;					// counters for limited output
+	struct Shared {
+		sem_t	sem;
+		mutex	mux;
+		int64_t	count;
+		int64_t show;
+	} *shared;					// counters for limited output
 	std::set<string> include, exclude;			// file extensions to include/exclude
 	union			{ uint64_t magic; char cmagic; };	// file magic word
 	uint64_t		mask;						// magic word mpush_back

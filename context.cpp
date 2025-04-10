@@ -50,6 +50,7 @@ void Context::parse(size_t n, char** argv)
 				else if (*arg == 'Y') format = Context::Format::Year;
 				else if (*arg == 'M') format = Context::Format::Month;
 				else if (*arg == 'D') format = Context::Format::Day;
+				else if (*arg == 'v') if (verbose) debug = true; else verbose = true;
 				// options with parameter
 				else if (*arg == 'l') option = &first;
 				else if (*arg == 'L') option = &last;
@@ -60,7 +61,6 @@ void Context::parse(size_t n, char** argv)
 				else if (*arg == 'i') option = &Context::addInclude;
 				else if (*arg == 'x') option = &Context::addExclude;
 				else if (*arg == 't') option = &dir;
-				else if (*arg == 'v') if (verbose) debug = true; else verbose = true;
 				else if (*arg == 'p') option = &Context::setSem;
 				if (set(option, arg + 1)) break;
 			}
@@ -75,7 +75,8 @@ Parameter:
 DEV	device/partition/image/file to open, example: /dev/sdc, /dev/sdd1, ./$MFT
 
 Options:
-	space after option letter may be omitted, parameters are consumed until next space
+		no parameter option may be combined under one leading -
+		space after option letter may be omitted, parameters are consumed until next space
 -h	display this help message and quit, helpfull to see other argument parsed
 -l lba	device LBA to start the scan from, hex is ok with 0x
 -L lba	device LBA to stop the scan before, hex is ok with 0x
@@ -85,18 +86,18 @@ Options:
 -f	overwrite target file if exists, files may get overwritten anyway
 -n N	number of entries scanned, NTFS boot sector, MFT entry or just LBA count
 -s N	number of entries to process
--m nnn	magic word to search at the beggining of a file to recover, text or hex (with 0x)
+-m N	magic word to search at the beggining of a file to recover, text or hex (with 0x)
 	max 8 bytes, effective bytes until most significant not null
--i x,y	allow files with extensions separated with comma (no spaces),
+-i x,y	only files with extensions separated with comma (no spaces),
 -x x,y	exclude files with extensions separated with comma (no spaces)
-	mime types are OK, example: image, video, audio
+		mime types are OK, example: image, video, audio
 -r	recover files from recycle bin
 -v	be verbose, if repeated be more verbose with debug info
 -d	show directories
 -Y	file path under target directory will be altered to /yyyy/
 -M	file path under target directory will be altered to /yyyy/mm/
 -D	file path under target directory will be altered to /yyyy/mm/dd/
-	based on file original modifaction time, useful for media files recovery
+		based on file original modifaction time, useful for media files recovery
 -X	show index allocations
 -a	show all entries including invalid or skipped otherwise
 -p N	max number of child processes for big file recovery, defaults to hardware capability
@@ -199,8 +200,8 @@ Context::Context(): dir("."), sector(512), sectors(8) {
 	childs = thread::hardware_concurrency()?:4;
 	shared = (Shared*)mmap(NULL, sizeof(Shared), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 	sem_init(&shared->sem, 1, 4);
-	shared->count = -1;
-	shared->show = -1;
+	shared->count = -1L;
+	shared->show = -1L;
 	while (dir.back() == '/') dir.pop_back();
 	ifstream mime("/etc/mime.types");
 	string line, type, extensions, file;

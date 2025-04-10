@@ -24,7 +24,7 @@ int main(int n, char** argv) {
 
 	LBA lba = context.first;
 	if (!idev.seekg(lba * context.sector)) {
-		cerr << "Device seek error: " << context.dev << endl
+		cerr << "Seek error: " << context.dev << endl
 			<< "Error: " << strerror(errno) << endl;
 		exit(EXIT_FAILURE);
 	}
