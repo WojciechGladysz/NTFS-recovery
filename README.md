@@ -8,12 +8,12 @@ Enter checked folder with `cd NTFS-recovery` and run `make`.
 For help run: `./ntfs.recover -h`\
 To recover files from /dev/sdx (no partition required) to current folder run: `./ntfs.recover /dev/sdx -R`\
 Add -u option to handle deleted files.\
-Example of recovery of 4 pictures from a newly re-formatted (empty) partition with console output:
+Example of recovery of 4 pictures with console output:
 
 `> ./ntfs.recover /dev/sda2 -s4 -iimage -Rt recover`
 ```
 Parsed arguments:
-Device:/dev/sda2, LBA:0x0, include deleted, process:4, only[image] pid:1061439
+Device:/dev/sda2, LBA:0x0, process:4, only[image] pid:1061439
 RECOVER to target dir: recover
 
 	Press enter to confirm...
