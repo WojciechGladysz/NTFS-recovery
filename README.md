@@ -8,25 +8,22 @@ Enter checked folder with `cd NTFS-recovery` and run `make`.
 For help run: `./ntfs.recover -h`\
 To recover files from /dev/sdx (no partition required) to current folder run: `./ntfs.recover /dev/sdx -R`\
 Add -u option to handle deleted files.\
-Example of recovery of 10 pictures from a newly re-formatted (empty) partition with console output:
+Example of recovery of 4 pictures from a newly re-formatted (empty) partition with console output:
 
-`> ./ntfs.recover -R -i image -t recovered -s4 -l0x601234 /dev/sdb1`
+`> ./ntfs.recover /dev/sda2 -s4 -iimage -Rt recover
 ```
 Parsed arguments:
-Device:/dev/sdb1, LBA:6296116x601234, process:4, include[image] pid:117565
-RECOVER to target dir: recovered
+Device:/dev/sda2, LBA:0x0, include deleted, process:4, only[image] pid:1061439
+RECOVER to target dir: recover
 
 	Press enter to confirm...
 
 Searching for MFT entries...
 
-New context LBA bias based on last $MFT record: 0x0@6291456x600000
-x601234 file/2330       /Nasze zdjęcia/2003/'03_09_07/DSC02027.JPG      2003.09.06 18:24:08     size:1328k      333:x6DB470/x6DBED8
-x601236 file/2331       /Nasze zdjęcia/2003/'03_09_07/DSC02028.JPG      2003.09.06 18:24:28     size:1365k      342:x6DBED8/x6DC988
-x601238 file/2332       /Nasze zdjęcia/2003/'03_09_07/DSC02029.JPG      2003.09.06 18:24:50     size:1381k      346:x6DC988/x6DD458
-x60123A file/2333       /Nasze zdjęcia/2003/'03_09_07/DSC02030.JPG      2003.09.06 18:27:38     size:1342k      336:x6DD458/x6DDED8
-
-Wait for child processes... 
+x600088 file/68 /zdjęcia/Redmi 9T/IMG_20230402_161627.jpg       2023.11.24 22:16:02     size:2747k      687:x426F4C0/x4270A38
+x60008E file/71 /zdjęcia/Redmi 9T/IMG_20220707_122243.jpg       2023.11.24 21:54:33     size:3285k      822:x42774C0/x4278E70
+x600094 file/74 /zdjęcia/Redmi 9T/IMG_20221207_154630.jpg       2023.11.24 22:13:41     size:3324k      832:x4297EF0/x42998F0
+x600096 file/75 /zdjęcia/FujiFilm X-A20/2020/Oporto/Zastrzeżone/DSCF6734.JPG    2020.10.08 16:09:06     size:2439k      610:x4297BC0/x4297DD0   x42B2A38/x42B3B38
 ```
 
 Have you recovered files from a corrupted partition?\
