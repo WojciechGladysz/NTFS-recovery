@@ -23,7 +23,7 @@ Searching for MFT entries...
 x600088 file/68 /zdjęcia/Redmi 9T/IMG_20230402_161627.jpg       2023.11.24 22:16:02     size:2747k      687:x426F4C0/x4270A38
 x60008E file/71 /zdjęcia/Redmi 9T/IMG_20220707_122243.jpg       2023.11.24 21:54:33     size:3285k      822:x42774C0/x4278E70
 x600094 file/74 /zdjęcia/Redmi 9T/IMG_20221207_154630.jpg       2023.11.24 22:13:41     size:3324k      832:x4297EF0/x42998F0
-x600096 file/75 /zdjęcia/FujiFilm X-A20/2020/Oporto/Zastrzeżone/DSCF6734.JPG    2020.10.08 16:09:06     size:2439k      610:x4297BC0/x4297DD0   x42B2A38/x42B3B38
+x600096 file/75 /zdjęcia/FujiFilm X-A20/2020/Oporto/DSCF6734.JPG    2020.10.08 16:09:06     size:2439k      610:x4297BC0/x4297DD0   x42B2A38/x42B3B38
 ```
 
 Have you recovered files from a corrupted partition?\
