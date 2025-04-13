@@ -28,7 +28,7 @@ x600096 file/75 /zdjęcia/FujiFilm X-A20/2020/Oporto/DSCF6734.JPG    2020.10.08 
 
 Have you recovered files from a corrupted partition?\
 Or have you recovered files from a re-formatted partition?\
-Or recovered deleted files successfully?\
+Or recovered deleted files from a good partition successfully?\
 Or just enjoyed inspecting data with debugging options -vv?
 
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-donate-yellow?style=flat-square&logo=buy-me-a-coffee)](https://www.buymeacoffee.com/kontra)
