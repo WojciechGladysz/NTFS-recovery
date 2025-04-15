@@ -120,7 +120,7 @@ bool File::setPath(const Record* record)
 			}
 		}
 	}
-	valid = context.recycle || !trash;
+	if (index) valid = context.recycle || !trash;
 	return true;
 }
 

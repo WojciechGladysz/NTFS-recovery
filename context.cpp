@@ -72,17 +72,17 @@ void Context::parse(size_t n, char** argv)
 	if (help) cerr << argv[0] << R"EOF( [Options] DEV
 
 Parameter:
-DEV	device/partition/image/file to open, example: /dev/sdc, /dev/sdd1, ./$MFT
+DEV	device/partition/image/file to open, example: /dev/sdc, /dev/sdd1, $MFT
 
 Options:
-		no parameter option may be combined under one leading -
-		space after option letter may be omitted, parameters are consumed until next space
+	no-parameter option may be combined following one leading -
+	space after option letter may be omitted, parameters are consumed until next space
 -h	display this help message and quit, helpfull to see other argument parsed
--l lba	device LBA to start the scan from, hex is ok with 0x
--L lba	device LBA to stop the scan before, hex is ok with 0x
+-l lba	device/file LBA to start the scan from, hex is ok with 0x
+-L lba	device/file LBA to stop the scan before, hex is ok with 0x
 -t dir	recovery target/output directory/mount point, defaults to current directory
 -R	recover data to target directory, otherwise dry run
--u	recover deleted files
+-u	include deleted files
 -f	overwrite target file if exists, files may get overwritten anyway
 -n N	number of entries scanned, NTFS boot sector, MFT entry or just LBA count
 -s N	number of entries to process
@@ -90,14 +90,10 @@ Options:
 	max 8 bytes, effective bytes until most significant not null
 -i x,y	only files with extensions separated with comma (no spaces),
 -x x,y	exclude files with extensions separated with comma (no spaces)
-		mime types are OK, example: image, video, audio
+	mime types are OK, example: image, video, audio
 -r	recover files from recycle bin
 -v	be verbose, if repeated be more verbose with debug info
 -d	show directories
--Y	file path under target directory will be altered to /yyyy/
--M	file path under target directory will be altered to /yyyy/mm/
--D	file path under target directory will be altered to /yyyy/mm/dd/
-		based on file original modifaction time, useful for media files recovery
 -X	show index allocations
 -a	show all entries including invalid or skipped otherwise
 -p N	max number of child processes for big file recovery, defaults to hardware capability
