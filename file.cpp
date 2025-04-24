@@ -158,9 +158,12 @@ File::File(LBA lba, const Record* record, Context& context):
 	if (hit(context.include, true)) hit(context.exclude, false);	// no file extension match not valid
 	setPath(record);
 	if (!index && !error) {		// this is MFT file own entry. MFT mirror shall be excluded by !error condition
-		if (context.verbose && runlist.empty()) {
-			cerr << "No runlist in $MFT file" << endl;
-			confirm();
+		if (runlist.empty()) {
+			if (context.verbose) { 
+				cerr << "No runlist in $MFT file" << endl;
+				confirm();
+			}
+			return;
 		}
 		context.mft.first = lba;
 		context.bias = lba - runlist[0].list[0].first * context.sectors;
@@ -169,8 +172,8 @@ File::File(LBA lba, const Record* record, Context& context):
 			<< outvar(context.bias) << '@' << outvar(lba) << endl;
 		dirs.clear();
 	}
-	if (valid && index)
-		if (lba < context.mft.first || lba >= context.mft.last)
+	if (index && valid)
+		if (!context.mft.first && !context.mft.last)
 			setBias(record);
 }
 
