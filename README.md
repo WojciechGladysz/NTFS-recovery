@@ -1,6 +1,7 @@
 A linux tool to recover files from NTFS file system.\
 Opens device file, partition file or just a file like image in read only mode.\
-You need to be a member of disk group to access disk or partition device file.
+You need to be a member of disk group to access disk or partition device file.\
+You can use sudo but recovered files will be owned by root. Use chown then.
 
 To build run `git clone git@github.com:Kontra2B/NTFS-recovery.git`\
 Enter checked folder with `cd NTFS-recovery` and run `make`.
