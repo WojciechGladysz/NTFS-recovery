@@ -3,8 +3,12 @@ Opens device file, partition file or just a file like image in read only mode.\
 You need to be a member of disk group to access disk or partition device file.\
 You can use sudo but recovered files will be owned by root. Use chown then.
 
-To build run `git clone git@github.com:Kontra2B/NTFS-recovery.git`\
-Enter checked folder with `cd NTFS-recovery` and run `make`.
+To build run the sequence
+```
+git clone git@github.com:Kontra2B/NTFS-recovery.git
+make -C NTFS-recovery
+cd NTFS-recovery
+```
 
 For help run: `./ntfs.recover -h`\
 To recover files from /dev/sdx (no partition required) to current folder run: `./ntfs.recover /dev/sdx -R`\
