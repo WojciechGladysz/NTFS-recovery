@@ -6,15 +6,17 @@ You can use sudo but recovered files will be owned by root. Use chown then.
 To build run the sequence
 ```
 git clone git@github.com:Kontra2B/NTFS-recovery.git
-make -C NTFS-recovery
 cd NTFS-recovery
+make
 ```
 
-For help run: `./ntfs.recover -h`\
-To recover files from /dev/sdx (no partition required) to current folder run: `./ntfs.recover /dev/sdx -R`\
+For help run: `> ./ntfs.recover -h`\
+To recover files from /dev/sdx (no partition required) to current folder run:
+```
+./ntfs.recover /dev/sdx -R
+```
 Add -u option to handle deleted files.\
-Example of recovery of 4 pictures with console output:
-
+Example of recovery of 4 pictures with console output:\
 `> ./ntfs.recover /dev/sda2 -s4 -iimage -Rt recover`
 ```
 Parsed arguments:
