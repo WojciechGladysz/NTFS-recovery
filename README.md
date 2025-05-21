@@ -15,8 +15,7 @@ To recover files from /dev/sdx (no partition required) to current folder run:
 ```
 ./ntfs.recover /dev/sdx -R
 ```
-Add -u option to handle deleted files.\
-Omit -R for dry run.\
+Add -u option to handle deleted files. Omit -R for dry run.\
 Example of recovery of 4 pictures with console output:\
 `> ./ntfs.recover /dev/sda2 -s4 -iimage -Rt recover`
 ```
